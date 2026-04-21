@@ -33,6 +33,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from . import auth as _auth
+from . import adyen_checkout as _adyen
 from .rate_limit import RateLimitMiddleware
 from .tools import (
     cart as cart_tools,
@@ -82,6 +83,9 @@ def build_mcp(name: str = "ap2-pharmacy") -> FastMCP:
 _PUBLIC_PATHS: tuple[str, ...] = (
     "/healthz",
     "/.well-known/oauth-protected-resource",
+    # Adyen Drop-in + webhook routes: the shopper's browser and Adyen's
+    # servers have no bearer token — the session_id itself is the capability.
+    *_adyen.PUBLIC_PATH_PREFIXES,
 )
 
 
@@ -231,6 +235,7 @@ def build_http_app(mcp: FastMCP) -> Starlette:
         Route("/healthz", _healthz, methods=["GET"]),
         Route("/.well-known/oauth-protected-resource",
               _oauth_protected_resource, methods=["GET"]),
+        *_adyen.routes(),
     ])
 
     # Middleware is added via add_middleware() which *prepends* each entry,

@@ -296,10 +296,11 @@ function render(out) {
 
   document.getElementById("continue").onclick = () => {
     if (!_selected) return;
-    if (_selected.kind === "mof") {
-      send(`Pay for my Boots basket using my saved card "${_selected._alias || _selected.name}".`);
-    } else if (_selected.kind === "new_card") {
-      send(`I'd like to pay with a new card. Walk me through adding it via Adyen.`);
+    if (_selected.kind === "mof" || _selected.kind === "new_card") {
+      // Both saved-card and new-card tiles launch the Adyen Web Drop-in
+      // Sessions flow. Drop-in shows the shopper's stored cards when a
+      // shopperReference is on file, and lets them enter a new PAN too.
+      send(`Please call start_adyen_checkout for my current basket so I can pay with Adyen Drop-in.`);
     } else {
       send(`I'd like to pay with ${_selected.name}.`);
     }
