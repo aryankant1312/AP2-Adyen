@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Receipt</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg, #f7f7f8);
+    color: var(--fg, #1a1a1a);
+  }
+  @media (prefers-color-scheme: dark) {
+    body { --bg: #1c1c1e; --fg: #f1f1f3; }
+    .card { background: #2a2a2d; border-color: #3a3a3d; }
+    .meta { color: #aaa; }
+    .total { color: #fff; }
+    table th { color: #aaa; border-color: #3a3a3d; }
+    table td { border-color: #3a3a3d; }
+    button.print { background: #5b8def; color: #fff; }
+  }
+  .wrap { padding: 16px; }
+  .head {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+  }
+  .check {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #1e7c3a;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .meta { color: #777; font-size: 13px; }
+  .card {
+    background: #fff;
+    border: 1px solid #e7e7ea;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .grid div b { color: #444; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
+  th { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .03em; }
+  td.qty   { width: 52px; text-align: center; }
+  td.price { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+  .total {
+    margin-top: 10px;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .actions { margin-top: 12px; display: flex; gap: 8px; }
+  button.print {
+    padding: 9px 12px;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 0;
+    background: #1f6feb;
+    color: white;
+    cursor: pointer;
+  }
+  button.ghost {
+    padding: 9px 12px;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid #d0d0d3;
+    color: #555;
+    cursor: pointer;
+  }
+  .psp { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: #666; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="check">✓</div>
+    <div>
+      <h1>Payment authorised</h1>
+      <div class="meta" id="when">Just now</div>
+    </div>
+  </div>
+  <div class="card" id="root"></div>
+</div>
+<script>
+var _has_data = false;
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  const orderId    = out.order_id || "(unknown)";
+  const receipt    = out.receipt || {};
+  const psp        = receipt.psp_reference
+                  || receipt.psp_confirmation_id
+                  || receipt.payment_id
+                  || out.psp_reference
+                  || "(no PSP reference)";
+  const amountGbp  = receipt.amount_gbp
+                  || (receipt.amount && (Number(receipt.amount.value) || 0))
+                  || out.total_gbp
+                  || 0;
+  const lines = Array.isArray(receipt.lines) ? receipt.lines
+              : Array.isArray(out.lines)     ? out.lines
+              : [];
+
+  const linesHtml = lines.length
+    ? `<table>
+         <thead><tr><th>Item</th><th class="qty">Qty</th><th class="price">Price</th></tr></thead>
+         <tbody>${lines.map(l => `
+           <tr>
+             <td>${escapeHtml(l.title || l.product_ref)}</td>
+             <td class="qty">${l.qty || 1}</td>
+             <td class="price">£${(Number(l.unit_price_gbp) || 0).toFixed(2)}</td>
+           </tr>`).join("")}
+         </tbody>
+       </table>`
+    : "";
+
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="grid">
+      <div><b>Order</b><br>${escapeHtml(orderId)}</div>
+      <div><b>Status</b><br>${escapeHtml(out.status || "Authorised")}</div>
+      <div><b>Date</b><br>${new Date().toLocaleString()}</div>
+      <div><b>Amount</b><br>£${(Number(amountGbp) || 0).toFixed(2)}</div>
+    </div>
+    ${linesHtml}
+    <div class="total">Total £${(Number(amountGbp) || 0).toFixed(2)}</div>
+    <div style="margin-top:8px">
+      <div class="meta">PSP reference</div>
+      <div class="psp">${escapeHtml(psp)}</div>
+    </div>
+    <div class="actions">
+      <button class="print" onclick="window.print()">Print receipt</button>
+      <button class="ghost" id="again">Reorder same items</button>
+    </div>
+  `;
+
+  document.getElementById("again").onclick = () =>
+    window.openai && window.openai.sendFollowUpMessage &&
+    window.openai.sendFollowUpMessage({
+      prompt: `Reorder the same items as order ${orderId}.`
+    });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function boot() {
+  var out = (window.openai && window.openai.toolOutput) || {};
+  render(out);
+}
+
+boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+window.addEventListener("load", function() {
+  boot();
+  var _polls = 0;
+  var _timer = setInterval(function() {
+    _polls++;
+    boot();
+    if (_has_data || _polls >= 20) clearInterval(_timer);
+  }, 150);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+# AP2 pharmacy POC — four services on one private compose network.
+# Only the MCP gateway is exposed to the host. MA / CP / MPP talk to one
+# another over service-name DNS inside the compose network.
+
+version: "3.9"
+
+x-base: &base
+  image: ap2-pharmacy:latest
+  build:
+    context: ..
+    dockerfile: ops/Dockerfile.python
+  env_file:
+    - envs/.env
+  volumes:
+    - ../data:/app/data
+    - ../keys:/app/keys
+  networks: [ap2net]
+  restart: unless-stopped
+
+services:
+
+  merchant_agent:
+    <<: *base
+    environment:
+      ROLE: merchant_agent
+      PORT: "8001"
+      MERCHANT_NAME: "AP2 Pharmacy"
+      CART_TTL_MIN: "30"
+      PSP_ADAPTER: "${PSP_ADAPTER:-mock}"
+      DB_PATH: "/app/data/pharmacy.sqlite"
+    expose: ["8001"]
+
+  credentials_provider:
+    <<: *base
+    environment:
+      ROLE: credentials_provider
+      PORT: "8002"
+      DB_PATH: "/app/data/pharmacy.sqlite"
+    expose: ["8002"]
+
+  merchant_payment_processor:
+    <<: *base
+    environment:
+      ROLE: merchant_payment_processor
+      PORT: "8003"
+      PAYMENT_METHOD: "card"            # legacy default; per-cart override wins
+      PSP_ADAPTER: "${PSP_ADAPTER:-mock}"
+      ADYEN_API_KEY:           "${ADYEN_API_KEY:-}"
+      ADYEN_MERCHANT_ACCOUNT:  "${ADYEN_MERCHANT_ACCOUNT:-}"
+      ADYEN_HMAC_KEY:          "${ADYEN_HMAC_KEY:-}"
+      ADYEN_ENV:               "${ADYEN_ENV:-TEST}"
+      ADYEN_API_BASE:          "${ADYEN_API_BASE:-}"
+      ADYEN_RETURN_URL:        "${ADYEN_RETURN_URL:-https://example.com/ap2-poc/return}"
+    expose: ["8003"]
+
+  mcp_gateway:
+    <<: *base
+    environment:
+      ROLE: mcp_gateway
+      MCP_HTTP_PORT: "8080"
+      MCP_TOKENS:                       "${MCP_TOKENS:-dev-token-change-me}"
+      MERCHANT_AGENT_URL:               "http://merchant_agent:8001"
+      CREDENTIALS_PROVIDER_URL:         "http://credentials_provider:8002"
+      MERCHANT_PAYMENT_PROCESSOR_URL:   "http://merchant_payment_processor:8003"
+      DB_PATH:                          "/app/data/pharmacy.sqlite"
+      SHOPPER_KEY_PATH:                 "/app/keys/shopper_key.pem"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - merchant_agent
+      - credentials_provider
+      - merchant_payment_processor
+
+networks:
+  ap2net:
+    driver: bridge

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Saved cards</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg, #f7f7f8);
+    color: var(--fg, #1a1a1a);
+  }
+  @media (prefers-color-scheme: dark) {
+    body { --bg: #1c1c1e; --fg: #f1f1f3; }
+    .card-tile { background: linear-gradient(135deg, #2a2a2d, #38383b); border-color: #3a3a3d; color: #fff; }
+    .pan { color: #fff; }
+    button.use { background: #5b8def; color: #fff; }
+  }
+  .wrap { padding: 16px; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #777; font-size: 13px; margin-bottom: 14px; }
+  .grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  .card-tile {
+    border-radius: 14px;
+    padding: 16px;
+    color: #fff;
+    background: linear-gradient(135deg, #1f3a93 0%, #4a69bd 100%);
+    border: 1px solid transparent;
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 150px;
+  }
+  .card-tile.mc   { background: linear-gradient(135deg, #c0392b 0%, #f39c12 100%); }
+  .card-tile.amex { background: linear-gradient(135deg, #16a085 0%, #2ecc71 100%); }
+  .row { display: flex; align-items: center; justify-content: space-between; }
+  .brand-tag { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 13px; }
+  .pan { font-family: "SF Mono", Menlo, monospace; letter-spacing: 0.18em; font-size: 18px; color: #fff; }
+  .alias { font-size: 12px; opacity: .85; }
+  .meta  { font-size: 11px; opacity: .8; }
+  .actions { display: flex; gap: 8px; margin-top: 6px; }
+  button.use {
+    flex: 1;
+    padding: 9px 12px;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 0;
+    background: rgba(255,255,255,0.92);
+    color: #1f3a93;
+    cursor: pointer;
+  }
+  .empty {
+    padding: 32px;
+    text-align: center;
+    color: #888;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+  }
+  .empty button {
+    margin-top: 12px;
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 0;
+    background: #1f6feb;
+    color: white;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="hd">Saved payment methods</h1>
+  <div class="sub" id="sub">Tap one to pay with it.</div>
+  <div id="root" class="grid"></div>
+</div>
+<script>
+var _has_data = false;
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  const methods = Array.isArray(out.methods) ? out.methods
+                : (Array.isArray(out) ? out : []);
+  document.getElementById("hd").textContent = methods.length
+    ? `Saved payment methods (${methods.length})`
+    : "No saved cards on file";
+
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  if (!methods.length) {
+    document.getElementById("sub").textContent = "";
+    root.innerHTML = `
+      <div class="empty">
+        We don't have any cards saved with the merchant for this account.
+        <br>You can pay with a new card via your wallet provider.
+        <br><button id="cp">Show me wallet cards</button>
+      </div>`;
+    document.getElementById("cp").onclick = () =>
+      window.openai && window.openai.sendFollowUpMessage &&
+      window.openai.sendFollowUpMessage({
+        prompt: "Show me my wallet (credentials provider) payment methods instead."
+      });
+    return;
+  }
+
+  function tileClass(brand) {
+    const b = String(brand || "").toLowerCase();
+    if (b.startsWith("mc") || b.includes("master")) return "mc";
+    if (b.includes("amex")) return "amex";
+    return "";
+  }
+
+  function send(msg) {
+    if (window.openai && window.openai.sendFollowUpMessage) {
+      window.openai.sendFollowUpMessage({ prompt: msg });
+    }
+  }
+
+  root.innerHTML = "";
+  for (const m of methods) {
+    const cls = tileClass(m.brand);
+    const last4 = m.last4 || "••••";
+    const alias = m.alias || m.display_name || `${m.brand || "Card"} •••• ${last4}`;
+    const lastUsed = (m.raw && m.raw.last_used_at) ? m.raw.last_used_at.slice(0,10)
+                   : (m.raw && m.raw.created_at)   ? "added " + m.raw.created_at.slice(0,10)
+                   : "";
+    const div = document.createElement("div");
+    div.className = "card-tile " + cls;
+    div.innerHTML = `
+      <div class="row">
+        <div class="brand-tag">${escapeHtml(m.brand || "Card")}</div>
+        <div class="meta">${escapeHtml(lastUsed)}</div>
+      </div>
+      <div class="pan">•••• •••• •••• ${escapeHtml(last4)}</div>
+      <div class="alias">${escapeHtml(alias)}</div>
+      <div class="actions">
+        <button class="use">Use this card</button>
+      </div>
+    `;
+    div.querySelector("button.use").onclick = () =>
+      send(`Pay with my saved card "${alias}".`);
+    root.appendChild(div);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function boot() {
+  var out = (window.openai && window.openai.toolOutput) || {};
+  render(out);
+}
+
+boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+window.addEventListener("load", function() {
+  boot();
+  var _polls = 0;
+  var _timer = setInterval(function() {
+    _polls++;
+    boot();
+    if (_has_data || _polls >= 20) clearInterval(_timer);
+  }, 150);
+});
+</script>
+</body>
+</html>

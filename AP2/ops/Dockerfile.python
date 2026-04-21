@@ -1,0 +1,67 @@
+# Multi-stage Dockerfile for all four AP2 Python services.
+# A single image; the entrypoint is selected per-service in docker-compose.
+#
+# Build:
+#   docker build -f ops/Dockerfile.python -t ap2-pharmacy:latest .
+# Run a specific service:
+#   docker run --rm -e ROLE=mcp_gateway ap2-pharmacy:latest
+
+FROM python:3.12-slim AS build
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# System deps for cryptography + a2a-sdk + httpx HTTP/2.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        build-essential libffi-dev libssl-dev curl ca-certificates \
+        git \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy only what's needed for dependency resolution first (cache friendliness).
+COPY samples/python/pyproject.toml /app/samples/python/pyproject.toml
+COPY src /app/src
+
+# Add the runtime extras the gateway and webhook need that aren't already
+# in the sample's pyproject.toml.
+RUN pip install --upgrade pip \
+ && pip install \
+        ./samples/python \
+        mcp \
+        starlette \
+        uvicorn[standard] \
+        pyjwt[crypto] \
+        adyen
+
+# Final slim stage.
+FROM python:3.12-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy site-packages from build stage.
+COPY --from=build /usr/local/lib/python3.12/site-packages \
+                  /usr/local/lib/python3.12/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
+
+# Project source — preserve relative layout used by `python -m`.
+COPY samples /app/samples
+COPY src /app/src
+COPY ops /app/ops
+COPY data /app/data
+COPY keys /app/keys
+
+ENV PYTHONPATH=/app/samples/python/src:/app/src
+
+# Default entrypoint chooses module by ROLE.
+COPY ops/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

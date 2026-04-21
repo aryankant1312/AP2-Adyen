@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cart</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg, #f7f7f8);
+    color: var(--fg, #1a1a1a);
+  }
+  @media (prefers-color-scheme: dark) {
+    body  { --bg: #1c1c1e; --fg: #f1f1f3; }
+    .card { background: #2a2a2d; border-color: #3a3a3d; }
+    th    { color: #aaa; border-color: #3a3a3d; }
+    td    { border-color: #3a3a3d; }
+    .total { color: #fff; }
+    button.primary { background: #5b8def; color: #fff; }
+    button.ghost   { background: transparent; color: #aaa; border-color: #3a3a3d; }
+  }
+  .wrap { padding: 16px; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #777; font-size: 13px; margin-bottom: 14px; }
+  .card {
+    background: #fff;
+    border: 1px solid #e7e7ea;
+    border-radius: 10px;
+    padding: 4px 14px 14px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid #eee; }
+  th { font-size: 12px; color: #777; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  td.qty   { width: 60px; text-align: center; }
+  td.price { width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+  .totals { margin-top: 12px; display: grid; gap: 6px; }
+  .totrow { display: flex; justify-content: space-between; }
+  .total  { font-size: 18px; font-weight: 700; padding-top: 8px; border-top: 1px solid #eee; }
+  .timer  { color: #888; font-size: 12px; margin-top: 8px; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; }
+  button {
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  button.primary { background: #1f6feb; color: white; }
+  button.ghost   { background: transparent; color: #555; border-color: #d0d0d3; }
+  .empty { padding: 32px; text-align: center; color: #888; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="hd">Your cart</h1>
+  <div class="sub" id="sub"></div>
+  <div class="card" id="root"></div>
+</div>
+<script>
+var _has_data = false;
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  const lines  = Array.isArray(out.items) ? out.items : [];
+  const cartId = out.cart_id || "(no cart)";
+  const store  = out.store_location || out.store || "";
+
+  document.getElementById("hd").textContent = lines.length
+    ? `Your cart (${lines.length} item${lines.length === 1 ? "" : "s"})`
+    : "Your cart is empty";
+  document.getElementById("sub").textContent =
+    `${cartId}${store ? " · " + store : ""}`;
+
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  if (!lines.length) {
+    root.innerHTML = `<div class="empty">Add products from the catalog to get started.</div>`;
+    return;
+  }
+
+  const rows = lines.map(it => {
+    const lineTotal = (Number(it.qty) || 0) * (Number(it.unit_price_gbp) || 0);
+    return `<tr>
+      <td>${escapeHtml(it.title || it.product_ref)}<div style="color:#888;font-size:12px">${escapeHtml(it.product_ref)}</div></td>
+      <td class="qty">${it.qty}</td>
+      <td class="price">£${(Number(it.unit_price_gbp) || 0).toFixed(2)}</td>
+      <td class="price">£${lineTotal.toFixed(2)}</td>
+    </tr>`;
+  }).join("");
+
+  const sub  = Number(out.subtotal_gbp || 0).toFixed(2);
+  const ship = Number(out.shipping_gbp || 0).toFixed(2);
+  const tax  = Number(out.tax_gbp || 0).toFixed(2);
+  const tot  = Number(out.total_gbp || 0).toFixed(2);
+
+  const timerLine = out.expires_at ? `<div class="timer" id="timer"></div>` : "";
+
+  root.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Item</th><th class="qty">Qty</th><th class="price">Price</th><th class="price">Subtotal</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="totals">
+      <div class="totrow"><span>Subtotal</span><span>£${sub}</span></div>
+      <div class="totrow"><span>Shipping</span><span>£${ship}</span></div>
+      <div class="totrow"><span>Tax (UK OTC: 0%)</span><span>£${tax}</span></div>
+      <div class="totrow total"><span>Total</span><span>£${tot}</span></div>
+      ${timerLine}
+    </div>
+    <div class="actions">
+      <button class="primary" id="checkout">Checkout</button>
+      <button class="ghost" id="more">Add more items</button>
+    </div>
+  `;
+
+  function send(msg) {
+    if (window.openai && window.openai.sendFollowUpMessage) {
+      window.openai.sendFollowUpMessage({ prompt: msg });
+    }
+  }
+  document.getElementById("checkout").onclick = () =>
+    send(`Finalize cart ${cartId} and show me my saved cards to pay with.`);
+  document.getElementById("more").onclick = () =>
+    send(`What else might I want to add to cart ${cartId}?`);
+
+  if (out.expires_at) {
+    const expEl = document.getElementById("timer");
+    const exp = new Date(out.expires_at).getTime();
+    const tick = () => {
+      const ms = exp - Date.now();
+      if (ms <= 0) { expEl.textContent = "Cart has expired."; return; }
+      const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
+      expEl.textContent = `Reserved for ${m}m ${s.toString().padStart(2,"0")}s`;
+    };
+    tick(); setInterval(tick, 1000);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function boot() {
+  var out = (window.openai && window.openai.toolOutput) || {};
+  render(out);
+}
+
+boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+window.addEventListener("load", function() {
+  boot();
+  var _polls = 0;
+  var _timer = setInterval(function() {
+    _polls++;
+    boot();
+    if (_has_data || _polls >= 20) clearInterval(_timer);
+  }, 150);
+});
+</script>
+</body>
+</html>
