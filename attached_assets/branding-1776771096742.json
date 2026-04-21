@@ -1,0 +1,146 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Boots Sharp",
+      "role": "body"
+    },
+    {
+      "family": "F37 Ginger Bold",
+      "role": "heading"
+    },
+    {
+      "family": "Arial",
+      "role": "body"
+    },
+    {
+      "family": "Tahoma",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#004990",
+    "secondary": "#CC0033",
+    "accent": "#05054B",
+    "background": "#FFFFFF",
+    "textPrimary": "#05054B",
+    "link": "#05054B"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Boots Sharp",
+      "heading": "F37 Ginger Bold"
+    },
+    "fontStacks": {
+      "heading": [
+        "Boots Sharp",
+        "Arial",
+        "sans-serif"
+      ],
+      "body": [
+        "Arial",
+        "helvetica",
+        "clean",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Boots Sharp",
+        "Arial",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "36px",
+      "h2": "20px",
+      "body": "16px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "5px"
+  },
+  "components": {
+    "buttonPrimary": {
+      "background": "#05054B",
+      "textColor": "#FFFFFF",
+      "borderColor": "#05054B",
+      "borderRadius": "5px",
+      "borderRadiusCorners": {
+        "topLeft": "5px",
+        "topRight": "5px",
+        "bottomRight": "5px",
+        "bottomLeft": "5px"
+      },
+      "shadow": "none"
+    },
+    "buttonSecondary": {
+      "background": "#FFFFFF",
+      "textColor": "#05054B",
+      "borderColor": "#FFFFFF",
+      "borderRadius": "5px",
+      "borderRadiusCorners": {
+        "topLeft": "5px",
+        "topRight": "5px",
+        "bottomRight": "5px",
+        "bottomLeft": "5px"
+      },
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": "https://www.boots.com/wcsstore/eBootsStorefrontAssetStore/MasterLogo2019/BVI%20Logo%20v2.png",
+    "favicon": "https://www.boots.com/wcsstore/eBootsStorefrontAssetStore/images/favicon/apple-touch-icon-52x52.png",
+    "ogImage": null,
+    "logoHref": "https://www.boots.com/",
+    "logoAlt": "Boots Logo"
+  },
+  "__llm_logo_reasoning": {
+    "selectedIndex": 4,
+    "reasoning": "Selected #4 because it is visible, located in the header, has the alt text 'Boots Logo', and links to the homepage, making it the primary brand logo.",
+    "confidence": 0.95,
+    "source": "llm"
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 0,
+      "text": "SHOP NOW",
+      "reasoning": "Button #0 has a vibrant brand color (#05054B) and action-oriented text 'SHOP NOW', making it a strong candidate for the primary CTA."
+    },
+    "secondary": {
+      "index": 4,
+      "text": "SHOP NOW",
+      "reasoning": "Button #4 has a different background color (#FFFFFF) and also uses action-oriented text 'SHOP NOW', making it suitable as a secondary CTA."
+    },
+    "confidence": 0.95
+  },
+  "personality": {
+    "tone": "professional",
+    "energy": "medium",
+    "targetAudience": "health and beauty consumers"
+  },
+  "designSystem": {
+    "framework": "custom",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0.95,
+    "colors": 0.9,
+    "overall": 0.925
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": true,
+      "llmSucceeded": true,
+      "finalSource": "llm",
+      "rawLogoSelection": {
+        "selectedLogoIndex": 4,
+        "selectedLogoReasoning": "Selected #4 because it is visible, located in the header, has the alt text 'Boots Logo', and links to the homepage, making it the primary brand logo.",
+        "confidence": 0.95
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": true,
+      "llmSucceeded": true
+    }
+  }
+}
