@@ -2,96 +2,212 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Cart</title>
+<title>Boots — Your basket</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg, #f7f7f8);
-    color: var(--fg, #1a1a1a);
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
   }
-  @media (prefers-color-scheme: dark) {
-    body  { --bg: #1c1c1e; --fg: #f1f1f3; }
-    .card { background: #2a2a2d; border-color: #3a3a3d; }
-    th    { color: #aaa; border-color: #3a3a3d; }
-    td    { border-color: #3a3a3d; }
-    .total { color: #fff; }
-    button.primary { background: #5b8def; color: #fff; }
-    button.ghost   { background: transparent; color: #aaa; border-color: #3a3a3d; }
-  }
-  .wrap { padding: 16px; }
-  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-  .sub { color: #777; font-size: 13px; margin-bottom: 14px; }
-  .card {
+  .frame {
     background: #fff;
-    border: 1px solid #e7e7ea;
-    border-radius: 10px;
-    padding: 4px 14px 14px;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid #eee; }
-  th { font-size: 12px; color: #777; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-  td.qty   { width: 60px; text-align: center; }
-  td.price { width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
-  .totals { margin-top: 12px; display: grid; gap: 6px; }
-  .totrow { display: flex; justify-content: space-between; }
-  .total  { font-size: 18px; font-weight: 700; padding-top: 8px; border-top: 1px solid #eee; }
-  .timer  { color: #888; font-size: 12px; margin-top: 8px; }
-  .actions { display: flex; gap: 8px; margin-top: 14px; }
-  button {
-    padding: 10px 14px;
-    font-weight: 600;
-    font-size: 13px;
+    border: 1px solid var(--boots-border);
     border-radius: 8px;
-    border: 1px solid transparent;
+    overflow: hidden;
+  }
+  .header {
+    background: var(--boots-navy);
+    padding: 14px 16px;
+  }
+  .header img.logo { height: 38px; filter: brightness(0) invert(1); display: block; }
+  /* ───── Steps ───── */
+  .steps {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+    background: #fff;
+  }
+  .step {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--boots-muted);
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.active { color: var(--boots-blue); border-bottom-color: var(--boots-blue); }
+  .step.done { color: var(--boots-text); }
+  .sep { color: var(--boots-muted); }
+  .body { padding: 16px; }
+  .basket-card {
+    background: var(--boots-grey-bg);
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .basket-card h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--boots-muted);
+  }
+  .item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 14px;
+    border: 1px solid var(--boots-border);
+    background: #fff;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .item .left {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .item .name { font-weight: 700; color: var(--boots-text); font-size: 14px; }
+  .item .ref  { color: var(--boots-muted); font-size: 12px; }
+  .item .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #E8F5EE; color: #1E7C3A;
+    border-radius: 3px; padding: 2px 6px;
+    font-weight: 600; font-size: 11px;
+    width: fit-content;
+  }
+  .item .price {
+    font-weight: 700; color: var(--boots-text); font-size: 15px;
+    text-align: right;
+  }
+  .item .qty { color: var(--boots-muted); font-size: 12px; }
+  .totals {
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-top: 14px;
+  }
+  .totrow {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0; font-size: 13px; color: var(--boots-muted);
+  }
+  .totrow.big {
+    font-size: 16px; font-weight: 700; color: var(--boots-text);
+    border-top: 1px solid var(--boots-border); padding-top: 10px; margin-top: 6px;
+  }
+  .ready-banner {
+    margin-top: 14px;
+    background: var(--boots-yellow);
+    border: 1px solid #efd900;
+    color: var(--boots-navy);
+    text-align: center;
+    font-weight: 700;
+    padding: 11px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  button.cta {
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    background: var(--boots-red);
+    color: #fff;
+    border: 0;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
     cursor: pointer;
   }
-  button.primary { background: #1f6feb; color: white; }
-  button.ghost   { background: transparent; color: #555; border-color: #d0d0d3; }
-  .empty { padding: 32px; text-align: center; color: #888; }
+  button.cta:disabled { opacity: .5; cursor: not-allowed; }
+  .ghost {
+    width: 100%;
+    margin-top: 8px;
+    padding: 11px;
+    background: transparent;
+    color: var(--boots-blue);
+    border: 1.5px solid var(--boots-blue);
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .timer { color: var(--boots-muted); font-size: 12px; margin-top: 8px; text-align: center; }
+  .empty { padding: 32px; text-align: center; color: var(--boots-muted); }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1 id="hd">Your cart</h1>
-  <div class="sub" id="sub"></div>
-  <div class="card" id="root"></div>
+<div class="frame">
+  <div class="header"><img class="logo" id="logo" alt="Boots"></div>
+  <div class="steps">
+    <span class="step active" id="step-cart">Basket</span>
+    <span class="sep">—</span>
+    <span class="step" id="step-pay">Payment</span>
+    <span class="sep">—</span>
+    <span class="step" id="step-receipt">Receipt</span>
+  </div>
+  <div class="body" id="root"></div>
 </div>
+
 <script>
 var _has_data = false;
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function send(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
 
 function render(out) {
   if (_has_data && (!out || !Object.keys(out).length)) return;
   if (out && Object.keys(out).length) _has_data = true;
 
+  document.getElementById("logo").src = "{{BOOTS_LOGO_DATA_URL}}";
+
   const lines  = Array.isArray(out.items) ? out.items : [];
   const cartId = out.cart_id || "(no cart)";
-  const store  = out.store_location || out.store || "";
-
-  document.getElementById("hd").textContent = lines.length
-    ? `Your cart (${lines.length} item${lines.length === 1 ? "" : "s"})`
-    : "Your cart is empty";
-  document.getElementById("sub").textContent =
-    `${cartId}${store ? " · " + store : ""}`;
 
   const root = document.getElementById("root");
   if (!root) return;
 
   if (!lines.length) {
-    root.innerHTML = `<div class="empty">Add products from the catalog to get started.</div>`;
+    root.innerHTML = `<div class="empty">Your basket is empty. Add products from the catalog to get started.</div>`;
     return;
   }
 
-  const rows = lines.map(it => {
+  const itemsHtml = lines.map(it => {
     const lineTotal = (Number(it.qty) || 0) * (Number(it.unit_price_gbp) || 0);
-    return `<tr>
-      <td>${escapeHtml(it.title || it.product_ref)}<div style="color:#888;font-size:12px">${escapeHtml(it.product_ref)}</div></td>
-      <td class="qty">${it.qty}</td>
-      <td class="price">£${(Number(it.unit_price_gbp) || 0).toFixed(2)}</td>
-      <td class="price">£${lineTotal.toFixed(2)}</td>
-    </tr>`;
+    return `
+      <div class="item">
+        <div class="left">
+          <div class="name">💊 ${escapeHtml(it.title || it.product_ref)}</div>
+          <div class="ref">${escapeHtml(it.product_ref)}</div>
+          <span class="tag">✓ Selected</span>
+        </div>
+        <div>
+          <div class="price">£${lineTotal.toFixed(2)}</div>
+          <div class="qty">qty ${it.qty}</div>
+        </div>
+      </div>`;
   }).join("");
 
   const sub  = Number(out.subtotal_gbp || 0).toFixed(2);
@@ -102,52 +218,37 @@ function render(out) {
   const timerLine = out.expires_at ? `<div class="timer" id="timer"></div>` : "";
 
   root.innerHTML = `
-    <table>
-      <thead>
-        <tr><th>Item</th><th class="qty">Qty</th><th class="price">Price</th><th class="price">Subtotal</th></tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="totals">
-      <div class="totrow"><span>Subtotal</span><span>£${sub}</span></div>
-      <div class="totrow"><span>Shipping</span><span>£${ship}</span></div>
-      <div class="totrow"><span>Tax (UK OTC: 0%)</span><span>£${tax}</span></div>
-      <div class="totrow total"><span>Total</span><span>£${tot}</span></div>
+    <div class="basket-card">
+      <h2>🛒 My basket</h2>
+      ${itemsHtml}
+      <div class="totals">
+        <div class="totrow"><span>Subtotal</span><span>£${sub}</span></div>
+        <div class="totrow"><span>Delivery</span><span>£${ship}</span></div>
+        <div class="totrow"><span>VAT (UK OTC: 0%)</span><span>£${tax}</span></div>
+        <div class="totrow big"><span>Total</span><span>£${tot}</span></div>
+      </div>
+      <div class="ready-banner">✅ Basket is ready for checkout!</div>
+      <button class="cta" id="pay">💳 Proceed to payment</button>
+      <button class="ghost" id="more">+ Add more items</button>
       ${timerLine}
-    </div>
-    <div class="actions">
-      <button class="primary" id="checkout">Checkout</button>
-      <button class="ghost" id="more">Add more items</button>
-    </div>
-  `;
+    </div>`;
 
-  function send(msg) {
-    if (window.openai && window.openai.sendFollowUpMessage) {
-      window.openai.sendFollowUpMessage({ prompt: msg });
-    }
-  }
-  document.getElementById("checkout").onclick = () =>
-    send(`Finalize cart ${cartId} and show me my saved cards to pay with.`);
+  document.getElementById("pay").onclick = () =>
+    send(`Show me my saved Boots cards to pay for basket ${cartId}.`);
   document.getElementById("more").onclick = () =>
-    send(`What else might I want to add to cart ${cartId}?`);
+    send(`What else might I want to add to basket ${cartId}?`);
 
   if (out.expires_at) {
     const expEl = document.getElementById("timer");
     const exp = new Date(out.expires_at).getTime();
     const tick = () => {
       const ms = exp - Date.now();
-      if (ms <= 0) { expEl.textContent = "Cart has expired."; return; }
+      if (ms <= 0) { expEl.textContent = "Basket has expired."; return; }
       const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
       expEl.textContent = `Reserved for ${m}m ${s.toString().padStart(2,"0")}s`;
     };
     tick(); setInterval(tick, 1000);
   }
-}
-
-function escapeHtml(s) {
-  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[c]));
 }
 
 function boot() {

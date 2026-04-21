@@ -2,160 +2,308 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Saved cards</title>
+<title>Boots — Choose payment method</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg, #f7f7f8);
-    color: var(--fg, #1a1a1a);
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
   }
-  @media (prefers-color-scheme: dark) {
-    body { --bg: #1c1c1e; --fg: #f1f1f3; }
-    .card-tile { background: linear-gradient(135deg, #2a2a2d, #38383b); border-color: #3a3a3d; color: #fff; }
-    .pan { color: #fff; }
-    button.use { background: #5b8def; color: #fff; }
+  .frame {
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    overflow: hidden;
   }
-  .wrap { padding: 16px; }
-  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-  .sub { color: #777; font-size: 13px; margin-bottom: 14px; }
-  .grid {
+  .header { background: var(--boots-navy); padding: 14px 16px; }
+  .header img.logo { height: 38px; filter: brightness(0) invert(1); display: block; }
+  .steps {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+    background: #fff;
+  }
+  .step {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--boots-muted);
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.active { color: var(--boots-blue); border-bottom-color: var(--boots-blue); }
+  .step.done { color: var(--boots-text); }
+  .sep { color: var(--boots-muted); }
+  .body { padding: 16px; }
+  .pm-card {
+    background: var(--boots-grey-bg);
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .pm-card h2 {
+    margin: 0 0 10px;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+    color: var(--boots-muted);
+  }
+  .method {
+    background: #fff;
+    border: 1.5px solid var(--boots-border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
     display: grid;
+    grid-template-columns: 44px 1fr 22px;
     gap: 12px;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-items: center;
+    cursor: pointer;
+    transition: border-color .12s;
+    position: relative;
   }
-  .card-tile {
-    border-radius: 14px;
-    padding: 16px;
+  .method:hover:not(.disabled) { border-color: var(--boots-blue); }
+  .method.selected {
+    border-color: var(--boots-blue);
+    box-shadow: inset 0 0 0 1px var(--boots-blue);
+  }
+  .method.disabled {
+    cursor: not-allowed; opacity: .65;
+  }
+  .icon {
+    width: 40px; height: 28px;
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .icon.visa  { background: #1A1F71; }
+  .icon.mc    { background: linear-gradient(90deg, #EB001B 50%, #F79E1B 50%); }
+  .icon.amex  { background: #2E77BB; }
+  .icon.card  { background: var(--boots-blue); }
+  .icon.apple { background: #000; }
+  .icon.gpay  { background: #fff; color: #5F6368; border: 1px solid var(--boots-border); }
+  .icon.paypal{ background: #003087; }
+  .icon.klarna{ background: #FFB3C7; color: #17120F; }
+  .icon.newcard { background: var(--boots-blue); }
+  .name { font-weight: 700; color: var(--boots-text); font-size: 14px; }
+  .meta { color: var(--boots-muted); font-size: 12px; margin-top: 2px; }
+  .badge-soon {
+    display: inline-block;
+    background: #F4F5F7;
+    color: var(--boots-muted);
+    font-weight: 600; font-size: 10px;
+    border-radius: 3px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .radio {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid #C9CDD4;
+    background: #fff;
+    position: relative;
+    flex-shrink: 0;
+    justify-self: end;
+  }
+  .method.selected .radio {
+    border-color: var(--boots-blue);
+  }
+  .method.selected .radio::after {
+    content: ""; position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--boots-blue);
+  }
+  button.cta {
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px;
+    background: var(--boots-red);
     color: #fff;
-    background: linear-gradient(135deg, #1f3a93 0%, #4a69bd 100%);
-    border: 1px solid transparent;
-    display: flex; flex-direction: column; gap: 12px;
-    min-height: 150px;
-  }
-  .card-tile.mc   { background: linear-gradient(135deg, #c0392b 0%, #f39c12 100%); }
-  .card-tile.amex { background: linear-gradient(135deg, #16a085 0%, #2ecc71 100%); }
-  .row { display: flex; align-items: center; justify-content: space-between; }
-  .brand-tag { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 13px; }
-  .pan { font-family: "SF Mono", Menlo, monospace; letter-spacing: 0.18em; font-size: 18px; color: #fff; }
-  .alias { font-size: 12px; opacity: .85; }
-  .meta  { font-size: 11px; opacity: .8; }
-  .actions { display: flex; gap: 8px; margin-top: 6px; }
-  button.use {
-    flex: 1;
-    padding: 9px 12px;
-    font-weight: 600;
-    font-size: 13px;
-    border-radius: 8px;
     border: 0;
-    background: rgba(255,255,255,0.92);
-    color: #1f3a93;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
     cursor: pointer;
   }
-  .empty {
-    padding: 32px;
-    text-align: center;
-    color: #888;
-    border: 1px dashed #ccc;
-    border-radius: 10px;
-  }
-  .empty button {
-    margin-top: 12px;
-    padding: 8px 14px;
-    font-weight: 600;
-    font-size: 13px;
-    border-radius: 8px;
-    border: 0;
-    background: #1f6feb;
-    color: white;
-    cursor: pointer;
-  }
+  button.cta:disabled { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1 id="hd">Saved payment methods</h1>
-  <div class="sub" id="sub">Tap one to pay with it.</div>
-  <div id="root" class="grid"></div>
+<div class="frame">
+  <div class="header"><img class="logo" id="logo" alt="Boots"></div>
+  <div class="steps">
+    <span class="step done">Basket</span>
+    <span class="sep">—</span>
+    <span class="step active">Payment</span>
+    <span class="sep">—</span>
+    <span class="step">Receipt</span>
+  </div>
+  <div class="body">
+    <div class="pm-card">
+      <h2>💳 Choose payment method</h2>
+      <div id="root"></div>
+      <button class="cta" id="continue" disabled>Continue</button>
+    </div>
+  </div>
 </div>
+
 <script>
 var _has_data = false;
-
-function render(out) {
-  if (_has_data && (!out || !Object.keys(out).length)) return;
-  if (out && Object.keys(out).length) _has_data = true;
-
-  const methods = Array.isArray(out.methods) ? out.methods
-                : (Array.isArray(out) ? out : []);
-  document.getElementById("hd").textContent = methods.length
-    ? `Saved payment methods (${methods.length})`
-    : "No saved cards on file";
-
-  const root = document.getElementById("root");
-  if (!root) return;
-
-  if (!methods.length) {
-    document.getElementById("sub").textContent = "";
-    root.innerHTML = `
-      <div class="empty">
-        We don't have any cards saved with the merchant for this account.
-        <br>You can pay with a new card via your wallet provider.
-        <br><button id="cp">Show me wallet cards</button>
-      </div>`;
-    document.getElementById("cp").onclick = () =>
-      window.openai && window.openai.sendFollowUpMessage &&
-      window.openai.sendFollowUpMessage({
-        prompt: "Show me my wallet (credentials provider) payment methods instead."
-      });
-    return;
-  }
-
-  function tileClass(brand) {
-    const b = String(brand || "").toLowerCase();
-    if (b.startsWith("mc") || b.includes("master")) return "mc";
-    if (b.includes("amex")) return "amex";
-    return "";
-  }
-
-  function send(msg) {
-    if (window.openai && window.openai.sendFollowUpMessage) {
-      window.openai.sendFollowUpMessage({ prompt: msg });
-    }
-  }
-
-  root.innerHTML = "";
-  for (const m of methods) {
-    const cls = tileClass(m.brand);
-    const last4 = m.last4 || "••••";
-    const alias = m.alias || m.display_name || `${m.brand || "Card"} •••• ${last4}`;
-    const lastUsed = (m.raw && m.raw.last_used_at) ? m.raw.last_used_at.slice(0,10)
-                   : (m.raw && m.raw.created_at)   ? "added " + m.raw.created_at.slice(0,10)
-                   : "";
-    const div = document.createElement("div");
-    div.className = "card-tile " + cls;
-    div.innerHTML = `
-      <div class="row">
-        <div class="brand-tag">${escapeHtml(m.brand || "Card")}</div>
-        <div class="meta">${escapeHtml(lastUsed)}</div>
-      </div>
-      <div class="pan">•••• •••• •••• ${escapeHtml(last4)}</div>
-      <div class="alias">${escapeHtml(alias)}</div>
-      <div class="actions">
-        <button class="use">Use this card</button>
-      </div>
-    `;
-    div.querySelector("button.use").onclick = () =>
-      send(`Pay with my saved card "${alias}".`);
-    root.appendChild(div);
-  }
-}
+var _selected = null;   // { id, kind, label, alias }
+var _user_email = null;
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
   }[c]));
+}
+
+function send(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function brandIconClass(brand) {
+  const b = String(brand || "").toLowerCase();
+  if (b.includes("visa"))   return "visa";
+  if (b.includes("master") || b.includes("mc")) return "mc";
+  if (b.includes("amex"))   return "amex";
+  return "card";
+}
+function brandIconText(brand) {
+  const b = String(brand || "").toLowerCase();
+  if (b.includes("visa"))   return "VISA";
+  if (b.includes("master") || b.includes("mc")) return "MC";
+  if (b.includes("amex"))   return "AMEX";
+  return "•••";
+}
+
+const WALLET_OPTIONS = [
+  { id: "newcard", kind: "new_card", iconClass: "newcard",
+    iconText: "+",
+    name: "Pay with a new card",
+    meta: "Add a Visa / Mastercard / Amex via Adyen Drop-in",
+    enabled: true },
+  { id: "applepay", kind: "wallet", iconClass: "apple",
+    iconText: "",
+    name: "Apple Pay",
+    meta: "Pay with Touch ID / Face ID",
+    enabled: false, badge: "Coming soon" },
+  { id: "googlepay", kind: "wallet", iconClass: "gpay",
+    iconText: "G·Pay",
+    name: "Google Pay",
+    meta: "Pay with your Google account",
+    enabled: false, badge: "Coming soon" },
+  { id: "paypal", kind: "wallet", iconClass: "paypal",
+    iconText: "PP",
+    name: "PayPal",
+    meta: "Pay with your PayPal balance",
+    enabled: false, badge: "Coming soon" },
+  { id: "klarna", kind: "bnpl", iconClass: "klarna",
+    iconText: "K",
+    name: "Klarna",
+    meta: "Pay in 3 — 0% interest",
+    enabled: false, badge: "Coming soon" },
+];
+
+const APPLE_LOGO_SVG =
+  '<svg viewBox="0 0 24 24" fill="#fff" width="14" height="14"><path d="M16.365 12.74c-.018-2.97 2.426-4.395 2.537-4.464-1.382-2.02-3.534-2.298-4.299-2.33-1.832-.187-3.572 1.078-4.5 1.078-.93 0-2.358-1.05-3.872-1.022-1.99.03-3.829 1.158-4.852 2.939-2.07 3.586-.527 8.89 1.488 11.797.984 1.418 2.16 3.018 3.7 2.961 1.49-.06 2.05-.962 3.85-.962 1.79 0 2.305.962 3.873.93 1.6-.03 2.612-1.444 3.59-2.86 1.13-1.638 1.594-3.227 1.62-3.31-.036-.014-3.106-1.193-3.135-4.757z"/></svg>';
+
+function renderMethod(opt, key) {
+  const div = document.createElement("div");
+  div.className = "method" + (opt.enabled ? "" : " disabled");
+  if (_selected && _selected.id === key) div.classList.add("selected");
+  const iconInner =
+    opt.id === "applepay" ? APPLE_LOGO_SVG : escapeHtml(opt.iconText || "");
+  div.innerHTML = `
+    <div class="icon ${opt.iconClass}">${iconInner}</div>
+    <div>
+      <div class="name">${escapeHtml(opt.name)}${opt.badge ? `<span class="badge-soon">${escapeHtml(opt.badge)}</span>` : ""}</div>
+      <div class="meta">${escapeHtml(opt.meta || "")}</div>
+    </div>
+    <div class="radio"></div>
+  `;
+  if (opt.enabled) {
+    div.onclick = () => {
+      _selected = { id: key, ...opt };
+      rerender();
+    };
+  }
+  return div;
+}
+
+function refreshContinue() {
+  document.getElementById("continue").disabled = !_selected;
+}
+
+function rerender() {
+  const root = document.getElementById("root");
+  root.innerHTML = "";
+
+  // Saved cards from MOF
+  for (const m of _saved_methods) {
+    const id = "mof::" + (m.alias || m.last4 || Math.random());
+    const opt = {
+      id, kind: "mof",
+      iconClass: brandIconClass(m.brand),
+      iconText: brandIconText(m.brand),
+      name: `${m.brand || "Card"} •••• ${m.last4 || "????"}`,
+      meta: `${m.alias || m.display_name || "Saved card"}` +
+            (m.raw && m.raw.last_used_at ? ` · last used ${m.raw.last_used_at.slice(0,10)}` : ""),
+      enabled: true,
+      _alias: m.alias,
+    };
+    root.appendChild(renderMethod(opt, id));
+  }
+
+  for (const opt of WALLET_OPTIONS) {
+    root.appendChild(renderMethod(opt, opt.id));
+  }
+
+  refreshContinue();
+}
+
+var _saved_methods = [];
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  document.getElementById("logo").src = "{{BOOTS_LOGO_DATA_URL}}";
+
+  _saved_methods = Array.isArray(out.methods) ? out.methods
+                 : (Array.isArray(out) ? out : []);
+  _user_email = out.user_email || null;
+
+  rerender();
+
+  document.getElementById("continue").onclick = () => {
+    if (!_selected) return;
+    if (_selected.kind === "mof") {
+      send(`Pay for my Boots basket using my saved card "${_selected._alias || _selected.name}".`);
+    } else if (_selected.kind === "new_card") {
+      send(`I'd like to pay with a new card. Walk me through adding it via Adyen.`);
+    } else {
+      send(`I'd like to pay with ${_selected.name}.`);
+    }
+  };
 }
 
 function boot() {

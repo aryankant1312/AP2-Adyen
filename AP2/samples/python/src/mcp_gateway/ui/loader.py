@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from pathlib import Path
 
@@ -10,6 +11,17 @@ from . import TEMPLATE_INDEX
 _LOG = logging.getLogger("ap2.mcp_gateway.ui")
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+
+def _boots_logo_data_url() -> str:
+    p = _TEMPLATES_DIR / "_boots_logo.png"
+    if not p.exists():
+        return ""
+    return ("data:image/png;base64,"
+            + base64.b64encode(p.read_bytes()).decode("ascii"))
+
+
+_BOOTS_LOGO_DATA_URL = _boots_logo_data_url()
 
 
 # Short human descriptions ChatGPT exposes in the connector inspector.
@@ -50,7 +62,8 @@ def register_resources(mcp) -> None:
     items = list(TEMPLATE_INDEX.items())
 
     for uri, (filename, mime) in items:
-        html = _load(filename)
+        html = _load(filename).replace(
+            "{{BOOTS_LOGO_DATA_URL}}", _BOOTS_LOGO_DATA_URL)
 
         meta = {
             # Self-reference — Apps SDK uses this to bind a resource to

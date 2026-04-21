@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# Bring the whole AP2 pharmacy stack up in the background.
+# Bring the AP2 Boots-pharmacy MCP stack up and expose it via ngrok.
 #
-# Starts (skipping any port already listening):
-#   :8001 merchant_agent
-#   :8002 credentials_provider
-#   :8003 merchant_payment_processor
-#   :8080 mcp_gateway  (MCP server — endpoint: /mcp)
-#   (optional) ngrok/cloudflared tunnel — only if --tunnel is passed AND
-#              ngrok or cloudflared is on PATH (ngrok takes priority).
+# Default behaviour (no flags):
+#   - Starts the three backend agents in the background:
+#       :8001 merchant_agent
+#       :8002 credentials_provider
+#       :8003 merchant_payment_processor
+#   - Starts the MCP gateway on :${MCP_HTTP_PORT:-5000} (or skips if that
+#     port is already serving — typical when the Replit workflow has it).
+#   - Always launches an ngrok HTTPS tunnel pointing at the gateway.
+#   - Prints a paste-ready ChatGPT / Claude connector banner.
+#
+# Skip the tunnel by passing  --no-tunnel.
+#
+# Required:
+#   NGROK_AUTHTOKEN   Replit secret. Used once with `ngrok config add-authtoken`.
 #
 # Logs go to <repo>/.logs/ap2-*.log. Use scripts/stop_stack.sh to tear down.
-#
-# Usage:
-#   ./scripts/start_stack.sh             # 4 backend services, no tunnel
-#   ./scripts/start_stack.sh --tunnel    # also start ngrok (or cloudflared)
 
 set -uo pipefail
 
@@ -21,25 +24,27 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${REPO_ROOT}/.logs"
 mkdir -p "${LOG_DIR}"
 
-MCP_PORT="${MCP_HTTP_PORT:-8080}"
+MCP_PORT="${MCP_HTTP_PORT:-5000}"
 ENV_FILE="${REPO_ROOT}/ops/envs/.env"
 
-# Add ngrok install location to PATH if it's at the typical Windows spot.
-if [[ -x "/c/Users/${USERNAME:-}/AppData/Local/ngrok/ngrok.exe" ]]; then
-  export PATH="/c/Users/${USERNAME}/AppData/Local/ngrok:${PATH}"
-fi
-# Add cloudflared install location to PATH if it's at the typical Windows spot.
-if [[ -x "/c/Program Files (x86)/cloudflared/cloudflared.exe" ]]; then
-  export PATH="/c/Program Files (x86)/cloudflared:${PATH}"
+# Prefer the bundled ngrok binary; fall back to PATH.
+NGROK_BIN="${REPO_ROOT}/.bin/ngrok"
+if [[ ! -x "${NGROK_BIN}" ]] && command -v ngrok >/dev/null 2>&1; then
+  NGROK_BIN="$(command -v ngrok)"
 fi
 
-WANT_TUNNEL=0
-[[ "${1:-}" == "--tunnel" ]] && WANT_TUNNEL=1
+WANT_TUNNEL=1
+[[ "${1:-}" == "--no-tunnel" ]] && WANT_TUNNEL=0
+[[ "${1:-}" == "--tunnel"    ]] && WANT_TUNNEL=1   # back-compat: harmless
 
 # ----------------------------------------------------------------- helpers
 
 port_in_use() {
-  netstat -ano 2>/dev/null | grep -q ":$1 .*LISTENING"
+  if command -v ss >/dev/null 2>&1; then
+    ss -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$"
+  else
+    (echo > "/dev/tcp/127.0.0.1/$1") >/dev/null 2>&1
+  fi
 }
 
 start_bg() {
@@ -81,150 +86,125 @@ read_token() {
       return 0
     fi
   fi
-  echo "(no MCP_TOKENS set — run: python ops/gen_token.py --write-env)"
+  echo ""
 }
 
-print_mcp_banner() {
-  local base_url="$1"
-  local token="$2"
+print_banner() {
+  local public_url="$1"
+  local local_url="$2"
+  local token="$3"
   local auth_req
   auth_req="$(echo "${MCP_REQUIRE_AUTH:-false}" | tr '[:upper:]' '[:lower:]')"
-  echo ""
-  echo "================================================================================"
-  echo "  AP2 MCP Gateway"
-  echo "--------------------------------------------------------------------------------"
-  echo "  MCP URL    : ${base_url}/mcp"
-  echo "  Health     : ${base_url}/healthz"
+  cat <<EOF
+
+================================================================================
+  Boots Pharmacy — AP2 MCP Gateway
+--------------------------------------------------------------------------------
+  Local URL    : ${local_url}/mcp
+  Local health : ${local_url}/healthz
+EOF
+  if [[ -n "${public_url}" ]]; then
+    cat <<EOF
+  Public URL   : ${public_url}/mcp        ← paste this into ChatGPT
+  Public health: ${public_url}/healthz
+EOF
+  fi
   case "${auth_req}" in
     1|true|yes|on)
-      echo "  Auth       : Bearer ${token}"
-      echo ""
-      echo "  Claude:  Settings → Connectors → Add custom connector"
-      echo "           URL   : ${base_url}/mcp"
-      echo "           Auth  : Bearer"
-      echo "           Token : ${token}"
+      echo "  Auth         : Bearer ${token}"
       ;;
     *)
-      echo "  Auth       : none (MCP_REQUIRE_AUTH is off)"
-      echo ""
-      echo "  Claude:  Settings → Connectors → Add custom connector"
-      echo "           URL   : ${base_url}/mcp"
-      echo "           Auth  : (none)"
+      echo "  Auth         : (none — gateway is in open mode)"
       ;;
+  esac
+  cat <<EOF
+--------------------------------------------------------------------------------
+  ChatGPT (developer mode):
+    Settings → Connectors → Add custom connector
+      URL  : ${public_url:-${local_url}}/mcp
+      Auth : (No auth)
+  Claude (custom connector):
+    Settings → Connectors → Add custom connector
+      URL  : ${public_url:-${local_url}}/mcp
+EOF
+  case "${auth_req}" in
+    1|true|yes|on)
+      cat <<EOF
+      Auth : Bearer
+      Token: ${token}
+EOF
+      ;;
+    *) ;;
   esac
   echo "================================================================================"
 }
 
 # ------------------------------------------------------------------- main
 
-echo "==> launching AP2 stack (logs in ${LOG_DIR})"
+echo "==> launching AP2 Boots stack (logs in ${LOG_DIR})"
 
-start_bg "merchant" 8001 "python ops/run_agents.py merchant"
-start_bg "cp"       8002 "python ops/run_agents.py cp"
-start_bg "mpp"      8003 "python ops/run_agents.py mpp"
-start_bg "gateway"  "${MCP_PORT}" "python ops/run_gateway.py"
+# Backend agents (best-effort — gateway also works without them for catalog/cart;
+# they are needed for the full payment-mandate signing path).
+start_bg "merchant" 8001 "uv run --no-sync python ops/run_agents.py merchant"
+start_bg "cp"       8002 "uv run --no-sync python ops/run_agents.py cp"
+start_bg "mpp"      8003 "uv run --no-sync python ops/run_agents.py mpp"
 
-# The agents have no /healthz; just give them a moment, then health-check
-# the gateway (which depends on them at first tool call, not at startup).
+# Gateway. If 5000 is already serving (Replit dev workflow), reuse it.
+start_bg "gateway"  "${MCP_PORT}" \
+  "MCP_HTTP_PORT=${MCP_PORT} uv run --no-sync python ops/run_gateway.py --http 0.0.0.0:${MCP_PORT}"
+
 sleep 2
-wait_for_health "http://localhost:${MCP_PORT}/healthz" "mcp-gateway"
+wait_for_health "http://localhost:${MCP_PORT}/healthz" "mcp-gateway" || true
 
 BEARER="$(read_token)"
 PUBLIC_MCP_URL=""
+LOCAL_URL="http://localhost:${MCP_PORT}"
 
 if (( WANT_TUNNEL == 1 )); then
-  echo ""
-  TUNNEL_LOG="${LOG_DIR}/ap2-tunnel.log"
+  if [[ ! -x "${NGROK_BIN}" ]]; then
+    echo "  ✗ ngrok binary not found at ${NGROK_BIN} — install it (see scripts/install_ngrok.sh) or pass --no-tunnel."
+  elif [[ -z "${NGROK_AUTHTOKEN:-}" ]]; then
+    echo "  ✗ NGROK_AUTHTOKEN env var is not set. Add it to your Replit secrets, then re-run."
+  else
+    echo ""
+    TUNNEL_LOG="${LOG_DIR}/ap2-tunnel.log"
 
-  if command -v ngrok >/dev/null 2>&1; then
-    # ----------------------------------------------------------------- ngrok
-    if pgrep -f "ngrok http" >/dev/null 2>&1 \
-       || powershell -NoProfile -Command \
-            "(Get-Process -Name ngrok -ErrorAction SilentlyContinue).Id" \
-            2>/dev/null | grep -q .
-    then
+    # Configure once (idempotent — overwrites if already set).
+    "${NGROK_BIN}" config add-authtoken "${NGROK_AUTHTOKEN}" >/dev/null 2>&1 || true
+
+    if pgrep -f "ngrok http" >/dev/null 2>&1; then
       echo "  ✓ ngrok already running (skipping)"
-      # Still try to read the current public URL from the API.
-      PUBLIC_MCP_URL="$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
-                         | python -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    ts = d.get("tunnels", [])
-    print(next((t.get("public_url","") for t in ts if t.get("public_url","")), ""))
-except Exception:
-    print("")
-' 2>/dev/null || true)"
     else
       echo "  ▶ starting ngrok tunnel  → log: ${TUNNEL_LOG}"
-      ( ngrok http "${MCP_PORT}" ) > "${TUNNEL_LOG}" 2>&1 &
+      ( "${NGROK_BIN}" http "${MCP_PORT}" --log=stdout --log-format=logfmt ) \
+          > "${TUNNEL_LOG}" 2>&1 &
       disown $! 2>/dev/null || true
-      # Poll ngrok's local API for the public URL.
-      for _ in $(seq 1 60); do
-        PUBLIC_MCP_URL="$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
-                           | python -c '
+    fi
+
+    # Poll ngrok's local API for the public URL (give it ~20s).
+    for _ in $(seq 1 40); do
+      PUBLIC_MCP_URL="$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
+                         | python3 -c '
 import sys, json
 try:
     d = json.load(sys.stdin)
     ts = d.get("tunnels", [])
-    print(next((t.get("public_url","") for t in ts if t.get("public_url","")), ""))
+    print(next((t.get("public_url","") for t in ts
+                if t.get("public_url","").startswith("https://")), ""))
 except Exception:
     print("")
 ' 2>/dev/null || true)"
-        [[ -n "${PUBLIC_MCP_URL}" ]] && break
-        sleep 0.5
-      done
-      if [[ -z "${PUBLIC_MCP_URL}" ]]; then
-        echo "  ✗ ngrok up but URL not detected in 30s — check log"
-      fi
+      [[ -n "${PUBLIC_MCP_URL}" ]] && break
+      sleep 0.5
+    done
+    if [[ -z "${PUBLIC_MCP_URL}" ]]; then
+      echo "  ✗ ngrok up but public URL not detected in 20s — check ${TUNNEL_LOG}"
     fi
-
-  elif command -v cloudflared >/dev/null 2>&1; then
-    # ----------------------------------------------------------- cloudflared
-    if pgrep -f "cloudflared.*tunnel" >/dev/null 2>&1 \
-       || powershell -NoProfile -Command \
-            "(Get-Process -Name cloudflared -ErrorAction SilentlyContinue).Id" \
-            2>/dev/null | grep -q .
-    then
-      echo "  ✓ cloudflared already running (skipping)"
-      PUBLIC_MCP_URL="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' \
-                          "${TUNNEL_LOG}" 2>/dev/null | tail -n1 || true)"
-    else
-      echo "  ▶ starting cloudflared tunnel  → log: ${TUNNEL_LOG}"
-      ( cloudflared tunnel --url "http://localhost:${MCP_PORT}" --no-autoupdate \
-          > "${TUNNEL_LOG}" 2>&1 ) &
-      disown $! 2>/dev/null || true
-      for _ in $(seq 1 60); do
-        PUBLIC_MCP_URL="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' \
-                            "${TUNNEL_LOG}" 2>/dev/null | head -n1 || true)"
-        [[ -n "${PUBLIC_MCP_URL}" ]] && break
-        sleep 0.5
-      done
-      if [[ -z "${PUBLIC_MCP_URL}" ]]; then
-        echo "  ✗ tunnel up but URL not detected in 30s — check log"
-      fi
-    fi
-
-  else
-    echo "  ✗ neither ngrok nor cloudflared found — install one:"
-    echo "      ngrok:       https://ngrok.com/download"
-    echo "      cloudflared: winget install Cloudflare.cloudflared"
   fi
 fi
 
-# -------------------------------------------------- MCP connection banner
-
-if [[ -n "${PUBLIC_MCP_URL}" ]]; then
-  print_mcp_banner "${PUBLIC_MCP_URL}" "${BEARER}"
-else
-  print_mcp_banner "http://localhost:${MCP_PORT}" "${BEARER}"
-fi
-
-# ------------------------------------------------------------- quick ref
+print_banner "${PUBLIC_MCP_URL}" "${LOCAL_URL}" "${BEARER}"
 
 echo ""
-echo "  tail logs  : tail -f ${LOG_DIR}/ap2-{merchant,cp,mpp,gateway,tunnel}.log"
-echo "  smoke test : python ops/smoke_gateway.py \\"
-echo "                   --base-url http://127.0.0.1:${MCP_PORT}/mcp \\"
-echo "                   --token \$(grep ^MCP_TOKENS ${ENV_FILE} | cut -d= -f2 | cut -d, -f1)"
-echo "  tear down  : ./scripts/stop_stack.sh"
+echo "  tail logs : tail -f ${LOG_DIR}/ap2-{merchant,cp,mpp,gateway,tunnel}.log"
+echo "  tear down : ${REPO_ROOT}/scripts/stop_stack.sh"

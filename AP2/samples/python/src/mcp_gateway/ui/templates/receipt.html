@@ -2,167 +2,290 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Receipt</title>
+<title>Boots — Order receipt</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+    --boots-green: #1E7C3A;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg, #f7f7f8);
-    color: var(--fg, #1a1a1a);
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
   }
-  @media (prefers-color-scheme: dark) {
-    body { --bg: #1c1c1e; --fg: #f1f1f3; }
-    .card { background: #2a2a2d; border-color: #3a3a3d; }
-    .meta { color: #aaa; }
-    .total { color: #fff; }
-    table th { color: #aaa; border-color: #3a3a3d; }
-    table td { border-color: #3a3a3d; }
-    button.print { background: #5b8def; color: #fff; }
-  }
-  .wrap { padding: 16px; }
-  .head {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 12px;
-  }
-  .check {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: #1e7c3a;
-    color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px; font-weight: 700;
-    flex-shrink: 0;
-  }
-  h1 { font-size: 18px; font-weight: 700; margin: 0; }
-  .meta { color: #777; font-size: 13px; }
-  .card {
+  .frame {
     background: #fff;
-    border: 1px solid #e7e7ea;
-    border-radius: 10px;
-    padding: 14px;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    overflow: hidden;
   }
-  .grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px;
+  .header { background: var(--boots-navy); padding: 14px 16px; }
+  .header img.logo { height: 38px; filter: brightness(0) invert(1); display: block; }
+  .steps {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+    background: #fff;
+  }
+  .step {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--boots-muted);
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.active { color: var(--boots-blue); border-bottom-color: var(--boots-blue); }
+  .step.done { color: var(--boots-text); }
+  .sep { color: var(--boots-muted); }
+  .body { padding: 16px; }
+  .ok-banner {
+    background: var(--boots-yellow);
+    border: 1px solid #efd900;
+    color: var(--boots-navy);
+    text-align: center;
+    font-weight: 700;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .success {
+    background: linear-gradient(180deg, #E8F5EE, #fff);
+    border: 1px solid #B5DDC4;
+    border-radius: 8px;
+    padding: 18px 16px;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .success .check {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--boots-green);
+    color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700;
     margin-bottom: 10px;
+  }
+  .success h3 { margin: 4px 0 4px; color: var(--boots-text); font-size: 16px; }
+  .success p  { margin: 0; color: var(--boots-muted); font-size: 13px; }
+  .receipt-card {
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .receipt-card h2 {
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--boots-muted);
+    background: var(--boots-grey-bg);
+    border-bottom: 1px solid var(--boots-border);
+  }
+  .meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px;
+    padding: 12px 14px;
     font-size: 13px;
   }
-  .grid div b { color: #444; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
-  th { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .03em; }
-  td.qty   { width: 52px; text-align: center; }
-  td.price { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
-  .total {
-    margin-top: 10px;
-    text-align: right;
-    font-size: 17px;
+  .meta-grid .k { color: var(--boots-muted); }
+  .meta-grid .v { color: var(--boots-text); font-weight: 600; word-break: break-all; }
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.items th, table.items td {
+    text-align: left;
+    padding: 10px 14px;
+    border-top: 1px solid var(--boots-border);
+  }
+  table.items th {
+    background: var(--boots-grey-bg);
+    color: var(--boots-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
     font-weight: 700;
   }
-  .actions { margin-top: 12px; display: flex; gap: 8px; }
-  button.print {
-    padding: 9px 12px;
-    font-weight: 600;
-    font-size: 13px;
-    border-radius: 8px;
-    border: 0;
-    background: #1f6feb;
-    color: white;
+  table.items td.num, table.items th.num { text-align: right; white-space: nowrap; }
+  .totals {
+    border-top: 1px solid var(--boots-border);
+    padding: 12px 14px;
+  }
+  .totrow {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0; font-size: 13px; color: var(--boots-muted);
+  }
+  .totrow.big {
+    font-size: 16px; font-weight: 700; color: var(--boots-text);
+    border-top: 1px solid var(--boots-border); padding-top: 10px; margin-top: 6px;
+  }
+  .footnote {
+    text-align: center;
+    color: var(--boots-muted);
+    font-size: 12px;
+    padding: 14px;
+  }
+  .footnote strong { color: var(--boots-text); }
+  button.cta, button.ghost {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
     cursor: pointer;
+  }
+  button.cta {
+    background: var(--boots-red); color: #fff; border: 0;
   }
   button.ghost {
-    padding: 9px 12px;
-    font-weight: 600;
-    font-size: 13px;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid #d0d0d3;
-    color: #555;
-    cursor: pointer;
+    background: transparent; color: var(--boots-blue);
+    border: 1.5px solid var(--boots-blue);
   }
-  .psp { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: #666; word-break: break-all; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="head">
-    <div class="check">✓</div>
-    <div>
-      <h1>Payment authorised</h1>
-      <div class="meta" id="when">Just now</div>
-    </div>
+<div class="frame">
+  <div class="header"><img class="logo" id="logo" alt="Boots"></div>
+  <div class="steps">
+    <span class="step done">Basket</span>
+    <span class="sep">—</span>
+    <span class="step done">Payment</span>
+    <span class="sep">—</span>
+    <span class="step active">Receipt</span>
   </div>
-  <div class="card" id="root"></div>
+  <div class="body" id="root"></div>
 </div>
+
 <script>
 var _has_data = false;
-
-function render(out) {
-  if (_has_data && (!out || !Object.keys(out).length)) return;
-  if (out && Object.keys(out).length) _has_data = true;
-
-  const orderId    = out.order_id || "(unknown)";
-  const receipt    = out.receipt || {};
-  const psp        = receipt.psp_reference
-                  || receipt.psp_confirmation_id
-                  || receipt.payment_id
-                  || out.psp_reference
-                  || "(no PSP reference)";
-  const amountGbp  = receipt.amount_gbp
-                  || (receipt.amount && (Number(receipt.amount.value) || 0))
-                  || out.total_gbp
-                  || 0;
-  const lines = Array.isArray(receipt.lines) ? receipt.lines
-              : Array.isArray(out.lines)     ? out.lines
-              : [];
-
-  const linesHtml = lines.length
-    ? `<table>
-         <thead><tr><th>Item</th><th class="qty">Qty</th><th class="price">Price</th></tr></thead>
-         <tbody>${lines.map(l => `
-           <tr>
-             <td>${escapeHtml(l.title || l.product_ref)}</td>
-             <td class="qty">${l.qty || 1}</td>
-             <td class="price">£${(Number(l.unit_price_gbp) || 0).toFixed(2)}</td>
-           </tr>`).join("")}
-         </tbody>
-       </table>`
-    : "";
-
-  const root = document.getElementById("root");
-  if (!root) return;
-
-  root.innerHTML = `
-    <div class="grid">
-      <div><b>Order</b><br>${escapeHtml(orderId)}</div>
-      <div><b>Status</b><br>${escapeHtml(out.status || "Authorised")}</div>
-      <div><b>Date</b><br>${new Date().toLocaleString()}</div>
-      <div><b>Amount</b><br>£${(Number(amountGbp) || 0).toFixed(2)}</div>
-    </div>
-    ${linesHtml}
-    <div class="total">Total £${(Number(amountGbp) || 0).toFixed(2)}</div>
-    <div style="margin-top:8px">
-      <div class="meta">PSP reference</div>
-      <div class="psp">${escapeHtml(psp)}</div>
-    </div>
-    <div class="actions">
-      <button class="print" onclick="window.print()">Print receipt</button>
-      <button class="ghost" id="again">Reorder same items</button>
-    </div>
-  `;
-
-  document.getElementById("again").onclick = () =>
-    window.openai && window.openai.sendFollowUpMessage &&
-    window.openai.sendFollowUpMessage({
-      prompt: `Reorder the same items as order ${orderId}.`
-    });
-}
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
   }[c]));
+}
+function send(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  document.getElementById("logo").src = "{{BOOTS_LOGO_DATA_URL}}";
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  const order_id   = out.order_id || out.cart_id || "—";
+  const status     = out.status || "AUTHORISED";
+  const date       = out.created_at || new Date().toISOString();
+  const dateNice   = new Date(date).toLocaleString("en-GB",
+                       { dateStyle: "medium", timeStyle: "short" });
+  const items      = Array.isArray(out.items) ? out.items : [];
+  const subtotal   = Number(out.subtotal_gbp || 0).toFixed(2);
+  const shipping   = Number(out.shipping_gbp || 0).toFixed(2);
+  const tax        = Number(out.tax_gbp || 0).toFixed(2);
+  const total      = Number(out.total_gbp || out.amount_gbp || 0).toFixed(2);
+  const currency   = out.currency || "GBP";
+  const payMode    = out.payment_method || out.payment_mode || "Card";
+  const payAlias   = out.payment_alias  || "";
+  const gateway    = out.gateway || "Adyen";
+  const psp_ref    = out.psp_reference || out.payment_id || "—";
+  const idem       = out.idempotency_key || "—";
+  const ship_addr  = out.shipping_address || out.delivery_address || "—";
+  const bill_addr  = out.billing_address || ship_addr;
+
+  const itemsRows = items.length ? items.map((it, i) => {
+    const qty = Number(it.qty || it.quantity || 1);
+    const unit = Number(it.unit_price_gbp || it.price_gbp || 0);
+    const line = qty * unit;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>
+          <div style="font-weight:600">${escapeHtml(it.title || it.product_ref)}</div>
+          <div style="color:var(--boots-muted);font-size:11px">${escapeHtml(it.product_ref || "")}</div>
+        </td>
+        <td class="num">${qty}</td>
+        <td class="num">£${line.toFixed(2)}</td>
+      </tr>`;
+  }).join("") : `
+    <tr><td colspan="4" style="text-align:center;color:var(--boots-muted);padding:18px">No items recorded.</td></tr>`;
+
+  root.innerHTML = `
+    <div class="ok-banner">✅ Order placed successfully — confirmation sent to your account</div>
+
+    <div class="success">
+      <div class="check">✓</div>
+      <h3>Payment ${escapeHtml(status)}</h3>
+      <p>Thank you — your Boots order has been confirmed.</p>
+    </div>
+
+    <div class="receipt-card">
+      <h2>📋 Order summary</h2>
+      <div class="meta-grid">
+        <div class="k">Order ID</div>           <div class="v">${escapeHtml(order_id)}</div>
+        <div class="k">Date</div>               <div class="v">${escapeHtml(dateNice)}</div>
+        <div class="k">Status</div>             <div class="v" style="color:var(--boots-green)">${escapeHtml(status)}</div>
+        <div class="k">Currency</div>           <div class="v">${escapeHtml(currency)}</div>
+        <div class="k">Payment mode</div>       <div class="v">${escapeHtml(payMode)}${payAlias ? " — " + escapeHtml(payAlias) : ""}</div>
+        <div class="k">Gateway</div>            <div class="v">${escapeHtml(gateway)}</div>
+        <div class="k">Gateway ref</div>        <div class="v">${escapeHtml(psp_ref)}</div>
+        <div class="k">Idempotency key</div>    <div class="v">${escapeHtml(idem)}</div>
+      </div>
+
+      <table class="items">
+        <thead>
+          <tr><th style="width:40px">#</th><th>Product</th><th class="num">Qty</th><th class="num">Line total</th></tr>
+        </thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+
+      <div class="totals">
+        <div class="totrow"><span>Subtotal</span><span>£${subtotal}</span></div>
+        <div class="totrow"><span>Delivery</span><span>£${shipping}</span></div>
+        <div class="totrow"><span>VAT (UK OTC: 0%)</span><span>£${tax}</span></div>
+        <div class="totrow big"><span>Total amount</span><span>£${total}</span></div>
+      </div>
+
+      <div class="meta-grid" style="border-top:1px solid var(--boots-border);">
+        <div class="k">Delivery address</div>   <div class="v">${escapeHtml(ship_addr)}</div>
+        <div class="k">Billing address</div>    <div class="v">${escapeHtml(bill_addr)}</div>
+      </div>
+
+      <div class="footnote">
+        <strong>Thank you for shopping with Boots.</strong><br>
+        Need help with this order? Just ask.
+      </div>
+    </div>
+
+    <button class="cta" id="track">Track my order</button>
+    <button class="ghost" id="more">Continue shopping</button>
+  `;
+
+  document.getElementById("track").onclick = () =>
+    send(`Show me the latest status of my Boots order ${order_id}.`);
+  document.getElementById("more").onclick = () =>
+    send(`Show me popular pharmacy items I might want to buy.`);
 }
 
 function boot() {

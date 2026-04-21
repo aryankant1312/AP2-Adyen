@@ -2,163 +2,317 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Pharmacy products</title>
+<title>Boots — Pharmacy results</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg, #f7f7f8);
-    color: var(--fg, #1a1a1a);
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
   }
-  @media (prefers-color-scheme: dark) {
-    body { --bg: #1c1c1e; --fg: #f1f1f3; }
-    .card { background: #2a2a2d; border-color: #3a3a3d; }
-    .badge-stock { background: #1f3b27; color: #6fe096; }
-    .badge-out   { background: #3b1f1f; color: #f08c8c; }
-    .price       { color: #fff; }
-    button.add   { background: #5b8def; color: #fff; }
-  }
-  .wrap { padding: 16px; }
-  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-  .sub { color: #777; font-size: 13px; margin-bottom: 14px; }
-  .grid {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-  .card {
+  .frame {
     background: #fff;
-    border: 1px solid #e7e7ea;
-    border-radius: 10px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .swatch {
-    height: 64px;
+    border: 1px solid var(--boots-border);
     border-radius: 8px;
-    background: linear-gradient(135deg, #eaf2ff 0%, #dde9ff 100%);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 26px;
+    overflow: hidden;
   }
-  .title { font-weight: 600; line-height: 1.3; }
-  .brand { color: #888; font-size: 12px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .price { font-size: 16px; font-weight: 600; color: #111; }
-  .badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-weight: 600;
+  /* ───── Boots header ───── */
+  .header {
+    background: var(--boots-navy);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 14px;
   }
-  .badge-stock { background: #e6f7ec; color: #1e7c3a; }
-  .badge-out   { background: #fbe8e8; color: #a32020; }
-  .shelf { color: #666; font-size: 12px; }
-  button.add {
-    margin-top: 4px;
-    padding: 8px 10px;
+  .header img.logo { height: 38px; width: auto; display: block; filter: brightness(0) invert(1); }
+  .header .search {
+    flex: 1;
+    background: #fff;
+    border-radius: 6px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px;
+    color: var(--boots-muted);
+    font-size: 13px;
+    border: 1px solid transparent;
+  }
+  .header .search .icon { width: 14px; height: 14px; opacity: .7; }
+  /* ───── Yellow info banner ───── */
+  .banner {
+    background: var(--boots-yellow);
+    color: var(--boots-navy);
     font-weight: 600;
     font-size: 13px;
-    border-radius: 8px;
-    border: 0;
-    background: #1f6feb;
-    color: white;
-    cursor: pointer;
-  }
-  button.add[disabled] { opacity: 0.5; cursor: not-allowed; }
-  .empty {
-    padding: 32px;
+    padding: 9px 16px;
     text-align: center;
-    color: #888;
-    border: 1px dashed #ccc;
-    border-radius: 10px;
+    border-top: 1px solid #efd900;
+    border-bottom: 1px solid #efd900;
+  }
+  /* ───── Body ───── */
+  .body { padding: 4px 0; }
+  .empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--boots-muted);
+  }
+  /* ───── Product row ───── */
+  .row {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+  }
+  .row:last-child { border-bottom: 0; }
+  .swatch {
+    width: 60px; height: 60px;
+    border-radius: 8px;
+    background: #F8FAFD;
+    border: 1px solid var(--boots-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .info .title {
+    font-weight: 700; color: var(--boots-text);
+    font-size: 14px; line-height: 1.3;
+  }
+  .info .meta { font-size: 12px; color: var(--boots-muted); margin-top: 2px; }
+  .info .price-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .price { font-weight: 700; color: var(--boots-text); font-size: 15px; }
+  .price-old { color: var(--boots-muted); text-decoration: line-through; font-size: 12px; }
+  .discount { color: #2E7D32; font-weight: 600; font-size: 12px; }
+  .rating {
+    margin-top: 6px; display: inline-flex; align-items: center; gap: 3px;
+    background: #2E7D32; color: #fff;
+    font-weight: 700; font-size: 11px;
+    padding: 2px 6px; border-radius: 3px;
+  }
+  .out-tag {
+    display: inline-block; margin-top: 4px;
+    background: #FBE8E8; color: var(--boots-red);
+    font-weight: 600; font-size: 11px;
+    padding: 2px 6px; border-radius: 3px;
+  }
+  /* ───── ADD / ADDED button ───── */
+  button.add {
+    min-width: 86px;
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    border-radius: 5px;
+    border: 1.5px solid var(--boots-blue);
+    background: #fff;
+    color: var(--boots-blue);
+    cursor: pointer;
+    transition: all .12s;
+  }
+  button.add:hover:not(:disabled) { background: #EAF1F7; }
+  button.add.added {
+    background: #1E7C3A; color: #fff; border-color: #1E7C3A;
+  }
+  button.add:disabled { opacity: .5; cursor: not-allowed; border-color: #C9CDD4; color: #6B7280; }
+  /* ───── Footer (selected count + actions) ───── */
+  .footer {
+    background: #fff;
+    border-top: 1px solid var(--boots-border);
+    padding: 14px 16px;
+  }
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 10px;
+  }
+  button.secondary, button.cta {
+    padding: 12px 14px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 0;
+  }
+  button.secondary {
+    background: #fff;
+    border: 1.5px solid var(--boots-blue);
+    color: var(--boots-blue);
+  }
+  button.cta {
+    background: var(--boots-red);
+    color: #fff;
+  }
+  button.cta:disabled, button.secondary:disabled { opacity: .55; cursor: not-allowed; }
+  .count {
+    text-align: center;
+    font-size: 12px;
+    color: var(--boots-muted);
+    margin-top: 10px;
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1 id="hd">Products</h1>
-  <div class="sub" id="sub"></div>
-  <div id="root" class="grid"></div>
+<div class="frame">
+  <div class="header">
+    <img class="logo" id="logo" alt="Boots">
+    <div class="search">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span id="search-text">Pharmacy results</span>
+    </div>
+  </div>
+  <div class="banner" id="banner">Showing pharmacy results — select items to add to your basket</div>
+  <div class="body" id="root"></div>
+  <div class="footer" id="footer" style="display:none">
+    <div class="actions">
+      <button class="secondary" id="more">More options</button>
+      <button class="cta" id="checkout" disabled>Checkout</button>
+    </div>
+    <div class="count" id="count">0 item(s) selected</div>
+  </div>
 </div>
+
 <script>
 var _has_data = false;
+var _selected = {};   // product_ref -> { product_ref, title, qty }
+
+function logoSrc() { return "{{BOOTS_LOGO_DATA_URL}}"; }
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function send(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function categoryIcon(cat) {
+  const ICONS = {
+    "Pain Relief": "💊", "Cold & Flu": "🤧", "Allergy & Sinus": "🌿",
+    "Digestive Health": "🫀", "First Aid": "🩹", "Vitamins & Supplements": "💪",
+    "Skin Care": "🧴", "Children's Health": "🍼", "Smoking Cessation": "🚭",
+    "Sleep Aid": "😴", "Eye Care": "👁"
+  };
+  return ICONS[cat] || "💊";
+}
+
+function refreshFooter() {
+  const count = Object.keys(_selected).length;
+  document.getElementById("count").textContent =
+    `${count} item${count === 1 ? "" : "s"} selected`;
+  document.getElementById("checkout").disabled = count === 0;
+}
 
 function render(out) {
-  // Only guard against clearing a render that already has product data.
   if (_has_data && (!out || !Object.keys(out).length)) return;
   if (out && Object.keys(out).length) _has_data = true;
 
   const products = Array.isArray(out.products) ? out.products
                  : (Array.isArray(out) ? out : []);
   const store = out.store || out.store_location || null;
+  const query = out.query || null;
 
-  const CATEGORY_ICON = {
-    "Pain Relief": "💊", "Cold & Flu": "🤧", "Allergy & Sinus": "🌿",
-    "Digestive Health": "🫀", "First Aid": "🩹", "Vitamins & Supplements": "💪",
-    "Skin Care": "🧴", "Children's Health": "🍼", "Smoking Cessation": "🚭",
-    "Sleep Aid": "😴", "Eye Care": "👁"
-  };
-
-  document.getElementById("hd").textContent =
-    products.length ? `${products.length} product${products.length === 1 ? "" : "s"} found`
-                    : "No products";
-  document.getElementById("sub").textContent =
-    store ? `at ${store}` : "across all stores";
+  document.getElementById("logo").src = logoSrc();
+  document.getElementById("search-text").textContent =
+    query ? `Results for "${query}"` : "Pharmacy results";
+  document.getElementById("banner").textContent = store
+    ? `Showing pharmacy results at ${store} — select items to add to your basket`
+    : "Showing pharmacy results — select items to add to your basket";
 
   const root = document.getElementById("root");
+  const footer = document.getElementById("footer");
   if (!root) return;
 
   if (!products.length) {
-    root.innerHTML = `<div class="empty">No matching products. Try a different keyword.</div>`;
+    root.innerHTML = `<div class="empty">No matching products. Try a different search.</div>`;
+    footer.style.display = "none";
     return;
-  }
-
-  function send(msg) {
-    if (window.openai && window.openai.sendFollowUpMessage) {
-      window.openai.sendFollowUpMessage({ prompt: msg });
-    }
   }
 
   root.innerHTML = "";
   for (const p of products) {
     const inStock = p.in_stock !== false && (p.qty_in_stock == null || p.qty_in_stock > 0);
-    const icon = CATEGORY_ICON[p.category] || "🧪";
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="swatch">${icon}</div>
-      <div class="title">${escapeHtml(p.title || p.product_ref)}</div>
-      <div class="brand">${escapeHtml(p.brand || "")}${p.category ? " · " + escapeHtml(p.category) : ""}</div>
-      <div class="row">
-        <div class="price">£${(Number(p.price_gbp) || 0).toFixed(2)}</div>
-        <div class="badge ${inStock ? "badge-stock" : "badge-out"}">
-          ${inStock ? (p.qty_in_stock ? p.qty_in_stock + " in stock" : "In stock") : "Out of stock"}
+    const price = Number(p.price_gbp) || 0;
+    const oldPrice = price > 0 ? (price * 1.12) : 0;  // synthetic "was" price
+    const pctOff = oldPrice > 0 ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0;
+    const isSelected = !!_selected[p.product_ref];
+
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="swatch">${categoryIcon(p.category)}</div>
+      <div class="info">
+        <div class="title">${escapeHtml(p.title || p.product_ref)}</div>
+        <div class="meta">${escapeHtml(p.brand || "")}${p.category ? " · " + escapeHtml(p.category) : ""}</div>
+        <div class="price-row">
+          <span class="price">£${price.toFixed(2)}</span>
+          ${oldPrice ? `<span class="price-old">£${oldPrice.toFixed(2)}</span>` : ""}
+          ${pctOff > 0 ? `<span class="discount">${pctOff}% off</span>` : ""}
         </div>
+        ${inStock
+          ? `<div class="rating">★ ${(4 + Math.random()*0.9).toFixed(1)}</div>`
+          : `<div class="out-tag">Out of stock</div>`}
       </div>
-      ${p.shelf ? `<div class="shelf">${escapeHtml(p.shelf)}</div>` : ""}
+      <div></div>
     `;
     const btn = document.createElement("button");
-    btn.className = "add";
-    btn.textContent = inStock ? "Add to cart" : "Notify when in stock";
+    btn.className = "add" + (isSelected ? " added" : "");
+    btn.textContent = isSelected ? "✓ Added" : "Add";
     btn.disabled = !inStock;
-    btn.onclick = () => send(
-      inStock
-        ? `Add 1 × ${p.title || p.product_ref} (${p.product_ref}) to my cart.`
-        : `Let me know when ${p.title || p.product_ref} is back in stock.`
-    );
-    card.appendChild(btn);
-    root.appendChild(card);
+    btn.onclick = () => {
+      if (_selected[p.product_ref]) {
+        delete _selected[p.product_ref];
+        btn.classList.remove("added");
+        btn.textContent = "Add";
+      } else {
+        _selected[p.product_ref] = {
+          product_ref: p.product_ref,
+          title: p.title,
+          qty: 1
+        };
+        btn.classList.add("added");
+        btn.textContent = "✓ Added";
+      }
+      refreshFooter();
+    };
+    row.querySelector(".info").parentNode.replaceChild(btn, row.children[2]);
+    root.appendChild(row);
   }
-}
 
-function escapeHtml(s) {
-  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[c]));
+  footer.style.display = "block";
+  refreshFooter();
+
+  document.getElementById("more").onclick = () =>
+    send("Show me more pharmacy products I might want to consider.");
+  document.getElementById("checkout").onclick = () => {
+    const items = Object.values(_selected);
+    if (!items.length) return;
+    const list = items
+      .map(it => `  - ${it.title || it.product_ref} (${it.product_ref}) × ${it.qty}`)
+      .join("\n");
+    send(
+      `Please add the following items to my Boots basket and then take me to ` +
+      `checkout (call add_cart_item for each, then finalize_cart, then ` +
+      `get_merchant_on_file_payment_methods):\n${list}`
+    );
+  };
 }
 
 function boot() {
@@ -172,8 +326,6 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
-// Poll every 150ms for up to 3s — ChatGPT injects toolOutput after the
-// invoking→invoked transition, which arrives after the initial boot attempts.
 window.addEventListener("load", function() {
   boot();
   var _polls = 0;

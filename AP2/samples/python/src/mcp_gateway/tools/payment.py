@@ -27,6 +27,100 @@ from ..schemas import (
 )
 from ..ui import RECEIPT_URI, widget_meta, widget_result
 
+
+# --------------------------------------------------------------------- receipt enrichment
+
+def _build_receipt_widget_payload(*, order_id: str,
+                                   receipt: dict,
+                                   payment_mandate: dict | None,
+                                   mcp_session_id: str | None) -> dict:
+    """Flatten receipt + cart + mandate metadata into a single payload the
+    receipt widget can render directly without further tool calls.
+    """
+    sess = (_session.get_or_create(token_hash=None, user_email=None,
+                                   session_id=mcp_session_id)
+            if mcp_session_id else {})
+    cart_id = sess.get("cart_id") or ""
+
+    items: list[dict] = []
+    subtotal = shipping = tax = total = 0.0
+    if cart_id:
+        try:
+            conn = _db.connect()
+            try:
+                rows = conn.execute(
+                    "SELECT product_ref, qty, unit_price_gbp, title "
+                    "FROM cart_items WHERE cart_id = ?", (cart_id,)
+                ).fetchall()
+                items = [dict(r) for r in rows]
+            finally:
+                conn.close()
+            subtotal = round(sum((it["qty"] or 0) * (it["unit_price_gbp"] or 0)
+                                 for it in items), 2)
+            shipping = 2.00 if subtotal > 0 else 0.0
+            tax      = 0.0
+            total    = round(subtotal + shipping + tax, 2)
+        except Exception:
+            _LOG.exception("could not fetch cart items for receipt widget")
+
+    amount = (receipt.get("amount") or {})
+    if total == 0.0 and amount.get("value"):
+        try:
+            total = float(amount["value"])
+        except Exception:
+            pass
+
+    pmc = (payment_mandate or {}).get("payment_mandate_contents") or {}
+    payresp = pmc.get("payment_response") or {}
+    method_name = payresp.get("method_name") or ""
+    token_meta  = (payresp.get("details") or {}).get("token") or {}
+    payer_email = payresp.get("payer_email") or sess.get("user_email")
+
+    if method_name.startswith("adyen"):
+        gateway = "Adyen"
+        payment_mode = "Saved card"
+    elif "/cp" in method_name:
+        gateway = "Credentials Provider"
+        payment_mode = "New card"
+    else:
+        gateway = receipt.get("gateway") or "Adyen"
+        payment_mode = "Card"
+
+    payment_alias = token_meta.get("source") or ""
+
+    store_location = sess.get("store_location") or "Boots online"
+    ship_addr = (f"Click & Collect — {store_location}"
+                 if store_location and store_location != "Boots online"
+                 else "Default delivery address on file")
+
+    return {
+        "order_id":         order_id,
+        "status":           receipt.get("status") or "Authorised",
+        "created_at":       receipt.get("timestamp")
+                            or datetime.now(timezone.utc).isoformat(),
+        "currency":         amount.get("currency") or "GBP",
+        "subtotal_gbp":     subtotal,
+        "shipping_gbp":     shipping,
+        "tax_gbp":          tax,
+        "total_gbp":        total,
+        "amount_gbp":       total,
+        "items":            items,
+        "payment_method":   payment_mode,
+        "payment_mode":     payment_mode,
+        "payment_alias":    payment_alias,
+        "gateway":          gateway,
+        "psp_reference":    receipt.get("psp_reference")
+                            or receipt.get("payment_id") or "",
+        "payment_id":       receipt.get("payment_id") or "",
+        "idempotency_key":  receipt.get("idempotency_key")
+                            or receipt.get("merchant_reference")
+                            or order_id,
+        "user_email":       payer_email,
+        "shipping_address": ship_addr,
+        "billing_address":  ship_addr,
+        "raw_receipt":      receipt,
+    }
+
 _LOG = logging.getLogger("ap2.mcp_gateway.tools.payment")
 
 
@@ -336,10 +430,10 @@ def register(mcp) -> None:
             order_id = receipt.get("payment_id") or f"ord_{uuid.uuid4().hex[:10]}"
             _session.set_last_order(mcp_session_id, order_id)
             _session.clear_pending_challenge(mcp_session_id)
-            authd = SubmitResultAuthorized(
+            payload = _build_receipt_widget_payload(
                 order_id=order_id, receipt=receipt,
-            ).model_dump()
-            return widget_result(authd, ui_uri=RECEIPT_URI)
+                payment_mandate=pm, mcp_session_id=mcp_session_id)
+            return widget_result(payload, ui_uri=RECEIPT_URI)
 
         return SubmitResultRefused(
             status="Refused" if result["status"] == "failed" else "Error",
@@ -457,9 +551,10 @@ def register(mcp) -> None:
                 logging.getLogger(__name__).warning(
                     "record_order failed (non-fatal): %s", exc)
 
-            authd = SubmitResultAuthorized(order_id=order_id,
-                                           receipt=receipt).model_dump()
-            return widget_result(authd, ui_uri=RECEIPT_URI)
+            payload = _build_receipt_widget_payload(
+                order_id=order_id, receipt=receipt,
+                payment_mandate=pm, mcp_session_id=mcp_session_id)
+            return widget_result(payload, ui_uri=RECEIPT_URI)
         if result["status"] == "input_required":
             ch = dict(result.get("challenge", {}))
             ch.setdefault("demo_hint",
