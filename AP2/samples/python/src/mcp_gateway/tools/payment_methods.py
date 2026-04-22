@@ -19,7 +19,14 @@ from common import a2a_helpers
 from .. import adyen_checkout as _adyen
 from .. import session as _session
 from ..schemas import PaymentMethodSummary, PaymentMethodToken
-from ..ui import MOF_PICKER_URI, RECEIPT_URI, widget_meta, widget_result
+from ..ui import (
+    MOF_PICKER_URI,
+    NEW_CARD_URI,
+    PROCESSING_URI,
+    RECEIPT_URI,
+    widget_meta,
+    widget_result,
+)
 from .payment import _build_receipt_widget_payload
 
 
@@ -147,18 +154,26 @@ def register(mcp) -> None:
     # completes the 3DS2 challenge in the browser tab.
     # ------------------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(
+        meta=widget_meta(
+            NEW_CARD_URI,
+            invoking="Securing your Adyen checkout…",
+            invoked="Enter payment details",
+        ),
+    )
     async def start_adyen_checkout(cart_id: str,
                                     user_email: str,
-                                    mcp_session_id: str | None = None
-                                    ) -> dict:
+                                    mcp_session_id: str | None = None):
         """Start an Adyen Web Drop-in checkout for a cart.
 
-        Returns ``{pay_url, session_id, amount_gbp}``. Give the user the
-        ``pay_url`` and ask them to open it in a new tab — they will see a
-        Boots-branded page that handles card / Apple Pay / Google Pay and
-        3DS2. When they return, call ``poll_adyen_checkout`` with the
-        ``session_id`` to fetch the outcome and render the receipt.
+        Renders the ``ui://new_card`` widget — Adyen Web Drop-in mounts
+        inline in the ChatGPT iframe and handles new-card entry, saved
+        cards (via the shopper reference on file), PayPal, Klarna, and
+        3DS2. The ``pay_url`` is still returned as a fallback link for
+        hosts that don't render the widget.
+
+        On success, the widget calls ``poll_adyen_checkout`` itself; the
+        LLM does not need to poll manually.
         """
         # Resolve cart total from SQLite.
         from pharmacy_data import db as _pdb
@@ -194,14 +209,18 @@ def register(mcp) -> None:
                 token=f"adyen-session:{info['session_id']}",
                 source="adyen_dropin",
             )
-        return {
+        payload = {
             **info,
+            "cart_id":    cart_id,
+            "user_email": user_email,
             "instructions": (
-                "Open the pay_url in a new tab to complete payment securely "
-                "with Adyen. After you see the 'Payment authorised' screen, "
-                "return here and I'll pull up your receipt."
+                "Enter your card details in the secure Adyen form above — "
+                "or pick a saved card / PayPal / Klarna if your account has "
+                "them on file. I'll show your receipt the moment the "
+                "payment is authorised."
             ),
         }
+        return widget_result(payload, ui_uri=NEW_CARD_URI)
 
     @mcp.tool(
         meta=widget_meta(
@@ -211,22 +230,48 @@ def register(mcp) -> None:
         ),
     )
     async def poll_adyen_checkout(session_id: str,
-                                   mcp_session_id: str | None = None
-                                   ) -> dict:
+                                   mcp_session_id: str | None = None):
         """Fetch the outcome of an Adyen Drop-in session.
 
-        Returns the receipt widget once Adyen reports the payment
-        ``Authorised``. While the shopper is still on the Drop-in page this
-        returns ``{"status":"pending"}`` — poll again in a few seconds.
+        While the payment is still in flight this emits the
+        ``ui://payment_processing`` widget so the shopper sees a spinner
+        (and the widget itself can keep polling via ``callTool``).
+        Once Adyen reports ``Authorised`` the same tool emits the
+        ``ui://receipt`` widget.
         """
         row = _adyen.refresh_session_status(session_id)
         if not row:
-            return {"status": "unknown", "error": "session_not_found"}
+            return widget_result(
+                {"status":  "unknown",
+                 "error":   "session_not_found",
+                 "session_id": session_id},
+                ui_uri=PROCESSING_URI,
+            )
         status = row.get("status") or "pending"
         if status != "completed":
-            return {"status": status,
+            amount_gbp = (row.get("amount_minor") or 0) / 100.0
+            # Reconstruct the pay_url so the widget can offer an escape
+            # hatch (open the hosted page) if the inline iframe flow breaks.
+            pay_url = None
+            try:
+                base = _adyen._public_base_url().rstrip("/")
+                pay_url = f"{base}/pay/{session_id}"
+            except Exception:
+                pay_url = None
+            return widget_result(
+                {
+                    "status":         status,
+                    "session_id":     session_id,
+                    "cart_id":        row.get("cart_id") or "",
+                    "amount_gbp":     amount_gbp,
+                    "currency":       row.get("currency") or "GBP",
                     "result_code":    row.get("result_code") or "",
-                    "refusal_reason": row.get("refusal_reason") or ""}
+                    "refusal_reason": row.get("refusal_reason") or "",
+                    "user_email":     row.get("user_email") or "",
+                    "pay_url":        pay_url,
+                },
+                ui_uri=PROCESSING_URI,
+            )
 
         # Build receipt payload from our ledger row so the receipt widget
         # can render without a full AP2 PaymentMandate round-trip.

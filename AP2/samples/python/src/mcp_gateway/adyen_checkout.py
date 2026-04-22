@@ -319,11 +319,46 @@ def create_checkout_session(*,
               session_id, cart_id, body["amount"]["value"], currency, pay_url)
 
     return {
-        "session_id":  session_id,
-        "pay_url":     pay_url,
-        "expires_at":  result.get("expiresAt"),
-        "amount_gbp":  amount_gbp,
-        "currency":    currency,
+        "session_id":   session_id,
+        "pay_url":      pay_url,
+        "expires_at":   result.get("expiresAt"),
+        "amount_gbp":   amount_gbp,
+        "currency":     currency,
+        # Raw fields needed to mount Adyen Web Drop-in inside the ChatGPT
+        # widget iframe (new_card.html). Safe to surface: ``sessionData`` is
+        # an opaque signed blob bound to this ``session_id`` + client key,
+        # and the client key is a public-by-design value.
+        "session_data":    result.get("sessionData") or "",
+        "client_key":      _client_key(),
+        "env_host":        _env_host(),
+        "env_short":       _env_short(),
+        "dropin_version":  _DROPIN_VERSION,
+    }
+
+
+def mount_data_for(session_id: str) -> dict | None:
+    """Re-materialise the client-side Drop-in mount payload from a persisted
+    session row. Returns ``None`` if the row is missing.
+    """
+    row = load_session_row(session_id)
+    if not row:
+        return None
+    session_blob = {}
+    try:
+        session_blob = json.loads(row.get("session_data") or "{}")
+    except Exception:
+        session_blob = {}
+    return {
+        "session_id":     session_id,
+        "session_data":   session_blob.get("sessionData") or "",
+        "client_key":     _client_key(),
+        "env_host":       _env_host(),
+        "env_short":      _env_short(),
+        "dropin_version": _DROPIN_VERSION,
+        "cart_id":        row.get("cart_id") or "",
+        "amount_gbp":     (row.get("amount_minor") or 0) / 100.0,
+        "currency":       row.get("currency") or "GBP",
+        "user_email":     row.get("user_email") or "",
     }
 
 

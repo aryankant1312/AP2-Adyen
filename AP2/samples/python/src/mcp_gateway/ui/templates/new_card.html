@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boots — Secure card entry</title>
+<style>
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-green: #1E7C3A;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
+  }
+  .frame {
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .header { background: var(--boots-navy); padding: 14px 16px; }
+  .header img.logo { height: 38px; filter: brightness(0) invert(1); display: block; }
+  .steps {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+    background: #fff;
+  }
+  .step {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--boots-muted);
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.active { color: var(--boots-blue); border-bottom-color: var(--boots-blue); }
+  .step.done { color: var(--boots-text); }
+  .sep { color: var(--boots-muted); }
+  .body { padding: 16px; }
+  .banner {
+    background: var(--boots-yellow);
+    border: 1px solid #efd900;
+    color: var(--boots-navy);
+    text-align: center;
+    font-weight: 700;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .summary {
+    background: var(--boots-grey-bg);
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .summary .label { color: var(--boots-muted); font-size: 12px; }
+  .summary .total { font-weight: 700; font-size: 18px; }
+  #dropin-container {
+    min-height: 220px;
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .err {
+    margin-top: 10px;
+    background: #FBE8E8; color: var(--boots-red);
+    padding: 10px 12px; border-radius: 6px;
+    font-size: 13px;
+  }
+  .status {
+    margin-top: 10px; padding: 10px 12px;
+    border-radius: 6px; font-size: 13px;
+    background: #E8F0FA; color: var(--boots-blue);
+    border: 1px solid #C8D8ED;
+  }
+  .status.ok { background: #E8F5EE; color: var(--boots-green); border-color: #B5DDC4; }
+  .status.bad { background: #FBE8E8; color: var(--boots-red);   border-color: #E7B7B7; }
+  .footnote {
+    font-size: 12px; color: var(--boots-muted);
+    text-align: center; margin-top: 14px;
+  }
+  .skeleton {
+    height: 18px; margin: 8px 0;
+    background: linear-gradient(90deg,#f0f0f3 0%,#e6e6ea 50%,#f0f0f3 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 4px;
+  }
+  .skeleton.tall { height: 42px; }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  button.ghost {
+    width: 100%;
+    margin-top: 8px;
+    padding: 11px;
+    background: transparent;
+    color: var(--boots-blue);
+    border: 1.5px solid var(--boots-blue);
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="header"><img class="logo" id="logo" alt="Boots"></div>
+  <div class="steps">
+    <span class="step done">Basket</span>
+    <span class="sep">—</span>
+    <span class="step active">Payment</span>
+    <span class="sep">—</span>
+    <span class="step">Receipt</span>
+  </div>
+  <div class="body">
+    <div class="banner">🔒 Secure payment powered by Adyen — your card details never touch Boots</div>
+    <div class="summary">
+      <div>
+        <div class="label">Basket</div>
+        <div style="font-weight:600;" id="cart-label">—</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="label">Total</div>
+        <div class="total" id="total-label">—</div>
+      </div>
+    </div>
+    <div id="dropin-container">
+      <div class="skeleton"></div>
+      <div class="skeleton tall"></div>
+      <div class="skeleton"></div>
+    </div>
+    <div id="status" class="status" style="display:none"></div>
+    <div id="err" class="err" style="display:none"></div>
+    <button class="ghost" id="change-method" style="display:none">← Use a different payment method</button>
+    <div class="footnote">
+      Card details are encrypted and sent directly to Adyen.
+    </div>
+  </div>
+</div>
+
+<script>
+// ------------------------------------------------------------------ helpers
+var _has_data = false;
+var _mounted  = false;
+var _pollTimer = null;
+var _checkoutData = null;   // { session_id, session_data, client_key, env, ... }
+
+function logoSrc() { return "{{BOOTS_LOGO_DATA_URL}}"; }
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable in this host"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
+  }
+}
+
+function sendFollowUp(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function showStatus(msg, kind) {
+  const el = document.getElementById("status");
+  el.className = "status" + (kind ? " " + kind : "");
+  el.textContent = msg || "";
+  el.style.display = msg ? "block" : "none";
+}
+
+function showError(msg) {
+  const el = document.getElementById("err");
+  el.textContent = msg || "";
+  el.style.display = msg ? "block" : "none";
+}
+
+// ------------------------------------------------------------------ Drop-in loader
+async function loadAdyen(envHost, version) {
+  // Load CSS + module script from the Adyen checkout-shopper CDN. The
+  // widget CSP registered in loader.py allows the relevant domains.
+  const cssHref =
+    `https://checkoutshopper-${envHost}.adyen.com/checkoutshopper/sdk/${version}/adyen.css`;
+  if (!document.querySelector(`link[href="${cssHref}"]`)) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = cssHref;
+    document.head.appendChild(link);
+  }
+  const jsHref =
+    `https://checkoutshopper-${envHost}.adyen.com/checkoutshopper/sdk/${version}/adyen.js`;
+  const mod = await import(jsHref);
+  return mod;
+}
+
+async function mountDropin(data) {
+  if (_mounted) return;
+  const container = document.getElementById("dropin-container");
+  if (!container) return;
+  try {
+    const envHost = data.env_host || "test";
+    const envShort = data.env_short || envHost;
+    const version = data.dropin_version || "6.31.1";
+    const { AdyenCheckout, Dropin, Card } = await loadAdyen(envHost, version);
+
+    const checkout = await AdyenCheckout({
+      environment: envShort,
+      clientKey:   data.client_key,
+      session: {
+        id:          data.session_id,
+        sessionData: data.session_data
+      },
+      countryCode: data.country_code || "GB",
+      locale:      data.locale || "en-GB",
+      analytics:   { enabled: false },
+      onPaymentCompleted: (result /*, component */) => {
+        const code = (result && result.resultCode) || "";
+        if (code === "Authorised") {
+          showStatus("Payment authorised — loading your receipt…", "ok");
+          finalisePayment(data.session_id);
+        } else if (code === "Received" || code === "Pending") {
+          showStatus("Adyen is still processing this payment — we'll keep checking.",
+                     null);
+          finalisePayment(data.session_id);
+        } else {
+          showStatus("Adyen returned: " + code, "bad");
+          finalisePayment(data.session_id);
+        }
+      },
+      onPaymentFailed: (result /*, component */) => {
+        const code = (result && result.resultCode) || "Refused";
+        showStatus("Payment " + code.toLowerCase() +
+                   ". No funds have been taken.", "bad");
+        document.getElementById("change-method").style.display = "block";
+      },
+      onError: (err /*, component */) => {
+        // 3DS-challenge cancellations surface here; surface them but don't
+        // lose the session — the shopper can retry in-place.
+        showError((err && err.message) || String(err) ||
+                  "Something went wrong with the payment form.");
+      },
+    });
+
+    container.innerHTML = "";
+    new Dropin(checkout, {
+      paymentMethodComponents: [Card],
+      // Show stored cards + any APMs the merchant account has on (PayPal,
+      // Klarna, Apple/Google Pay). Unsupported APMs are silently hidden
+      // by Drop-in.
+      showStoredPaymentMethods: true,
+      openFirstPaymentMethod:   true,
+    }).mount(container);
+    _mounted = true;
+  } catch (err) {
+    console.error("Adyen Drop-in failed to mount", err);
+    showError("Could not load the secure payment form: " +
+              ((err && err.message) || err));
+  }
+}
+
+// ------------------------------------------------------------------ completion
+async function finalisePayment(sessionId) {
+  // Gently poll our own MCP server — it refreshes the session status
+  // against Adyen and emits a receipt widget once authorised. The first
+  // successful reply causes ChatGPT to swap this widget out for the
+  // receipt widget, so we don't strictly need to keep polling, but we
+  // retry a few times in case the webhook/authorisation hasn't landed
+  // yet.
+  if (_pollTimer) clearInterval(_pollTimer);
+  let attempts = 0;
+  const tick = async () => {
+    attempts++;
+    try {
+      await callTool("poll_adyen_checkout", { session_id: sessionId });
+    } catch (e) {
+      // callTool can reject while ChatGPT is rendering a result — harmless.
+    }
+    if (attempts >= 20) clearInterval(_pollTimer);
+  };
+  await tick();
+  _pollTimer = setInterval(tick, 2500);
+}
+
+// ------------------------------------------------------------------ render
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  document.getElementById("logo").src = logoSrc();
+
+  const sid = out.session_id || "";
+  const sdata = out.session_data || "";
+  const ck  = out.client_key || "";
+  const cart = out.cart_id || out.merchant_reference || "";
+  const cur  = out.currency || "GBP";
+  const amt  = Number(out.amount_gbp || out.amount || 0);
+  const sym  = cur === "GBP" ? "£" : (cur === "USD" ? "$" : "");
+
+  document.getElementById("cart-label").textContent = cart || "(current basket)";
+  document.getElementById("total-label").textContent = sym + amt.toFixed(2);
+
+  if (out.error) {
+    showError(out.error + (out.message ? " — " + out.message : ""));
+    return;
+  }
+  if (!sid || !sdata || !ck) {
+    // Backend didn't supply enough to mount. Fall back to narration so the
+    // LLM can retry.
+    showError("Adyen session data is missing from the server response.");
+    return;
+  }
+
+  _checkoutData = {
+    session_id:      sid,
+    session_data:    sdata,
+    client_key:      ck,
+    env_host:        out.env_host || "test",
+    env_short:       out.env_short || (out.env_host || "test"),
+    dropin_version:  out.dropin_version || "6.31.1",
+    country_code:    out.country_code || "GB",
+    locale:          out.locale || "en-GB",
+  };
+  setWidgetState({
+    session_id: sid,
+    cart_id:    cart,
+    amount_gbp: amt,
+    currency:   cur,
+  });
+
+  mountDropin(_checkoutData);
+
+  const changeBtn = document.getElementById("change-method");
+  changeBtn.onclick = async () => {
+    try {
+      const email = out.user_email || null;
+      await callTool("get_merchant_on_file_payment_methods",
+                     { user_email: email });
+    } catch (e) {
+      sendFollowUp("Let me pick a different payment method for this basket.");
+    }
+  };
+}
+
+function boot() {
+  var out = (window.openai && window.openai.toolOutput) || {};
+  render(out);
+}
+
+boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+window.addEventListener("load", function() {
+  boot();
+  var _polls = 0;
+  var _timer = setInterval(function() {
+    _polls++;
+    boot();
+    if (_has_data || _polls >= 20) clearInterval(_timer);
+  }, 150);
+});
+</script>
+</body>
+</html>

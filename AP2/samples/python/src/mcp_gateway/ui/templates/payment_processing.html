@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boots — Processing payment</title>
+<style>
+  :root {
+    color-scheme: light;
+    --boots-navy: #05054B;
+    --boots-blue: #004990;
+    --boots-red:  #CC0033;
+    --boots-yellow: #FFE600;
+    --boots-green: #1E7C3A;
+    --boots-grey-bg: #F4F5F7;
+    --boots-border: #E1E3E8;
+    --boots-text: #05054B;
+    --boots-muted: #6B7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 Arial, Helvetica, sans-serif;
+    background: var(--boots-grey-bg);
+    color: var(--boots-text);
+  }
+  .frame {
+    background: #fff;
+    border: 1px solid var(--boots-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .header { background: var(--boots-navy); padding: 14px 16px; }
+  .header img.logo { height: 38px; filter: brightness(0) invert(1); display: block; }
+  .steps {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--boots-border);
+    background: #fff;
+  }
+  .step {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--boots-muted);
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.active { color: var(--boots-blue); border-bottom-color: var(--boots-blue); }
+  .step.done { color: var(--boots-text); }
+  .sep { color: var(--boots-muted); }
+  .body { padding: 24px 20px; text-align: center; }
+  .spinner {
+    width: 58px; height: 58px;
+    margin: 8px auto 14px;
+    border-radius: 50%;
+    border: 4px solid #D6DDEA;
+    border-top-color: var(--boots-blue);
+    animation: spin 0.85s linear infinite;
+  }
+  .spinner.bad { border-top-color: var(--boots-red); animation: none; }
+  .spinner.ok  { border-top-color: var(--boots-green); animation: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 18px; margin: 6px 0 4px; color: var(--boots-text); }
+  p  { color: var(--boots-muted); margin: 2px 0; font-size: 13px; }
+  .meta {
+    margin: 18px auto 0;
+    max-width: 380px;
+    background: var(--boots-grey-bg);
+    border: 1px solid var(--boots-border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px; color: var(--boots-muted);
+    text-align: left;
+  }
+  .meta .row {
+    display: flex; justify-content: space-between; padding: 3px 0;
+  }
+  .meta .row strong { color: var(--boots-text); }
+  .dots {
+    display: inline-block; min-width: 18px; text-align: left;
+  }
+  button.cta, button.ghost {
+    margin-top: 14px;
+    padding: 11px 16px;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  button.cta {
+    background: var(--boots-red); color: #fff; border: 0;
+  }
+  button.ghost {
+    background: transparent; color: var(--boots-blue);
+    border: 1.5px solid var(--boots-blue);
+  }
+  .banner {
+    background: var(--boots-yellow);
+    border: 1px solid #efd900;
+    color: var(--boots-navy);
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .banner.bad { background: #FBE8E8; color: var(--boots-red); border-color: #E7B7B7; }
+  .banner.ok  { background: #E8F5EE; color: var(--boots-green); border-color: #B5DDC4; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="header"><img class="logo" id="logo" alt="Boots"></div>
+  <div class="steps">
+    <span class="step done">Basket</span>
+    <span class="sep">—</span>
+    <span class="step active">Payment</span>
+    <span class="sep">—</span>
+    <span class="step">Receipt</span>
+  </div>
+  <div class="body" id="root">
+    <div class="banner" id="banner">🔒 Finalising your payment with Adyen</div>
+    <div class="spinner" id="spinner"></div>
+    <h1 id="headline">Processing payment<span class="dots" id="dots"></span></h1>
+    <p id="subline">Hang tight — we're confirming the authorisation.</p>
+    <div class="meta" id="meta" style="display:none">
+      <div class="row"><span>Session</span><strong id="m-session">—</strong></div>
+      <div class="row"><span>Basket</span><strong id="m-cart">—</strong></div>
+      <div class="row"><span>Amount</span><strong id="m-amt">—</strong></div>
+      <div class="row"><span>Status</span><strong id="m-status">—</strong></div>
+    </div>
+    <div id="actions"></div>
+  </div>
+</div>
+
+<script>
+var _has_data = false;
+var _dotTimer = null;
+var _pollTimer = null;
+var _pollsDone = 0;
+var _lastSession = null;
+
+function logoSrc() { return "{{BOOTS_LOGO_DATA_URL}}"; }
+
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function sendFollowUp(prompt) {
+  if (window.openai && window.openai.sendFollowUpMessage) {
+    window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
+  }
+}
+
+function startDots() {
+  if (_dotTimer) return;
+  const el = document.getElementById("dots");
+  let i = 0;
+  _dotTimer = setInterval(() => {
+    i = (i + 1) % 4;
+    el.textContent = ".".repeat(i);
+  }, 500);
+}
+function stopDots() {
+  if (_dotTimer) { clearInterval(_dotTimer); _dotTimer = null; }
+  const el = document.getElementById("dots");
+  if (el) el.textContent = "";
+}
+
+function applyTerminal(kind, headline, subline) {
+  const spinner = document.getElementById("spinner");
+  spinner.classList.remove("ok", "bad");
+  if (kind) spinner.classList.add(kind);
+  document.getElementById("headline").textContent = headline;
+  document.getElementById("subline").textContent = subline;
+  const banner = document.getElementById("banner");
+  banner.classList.remove("ok", "bad");
+  if (kind === "ok") {
+    banner.classList.add("ok");
+    banner.textContent = "✅ Authorised — pulling up your receipt";
+  } else if (kind === "bad") {
+    banner.classList.add("bad");
+    banner.textContent = "⚠️ Payment did not complete";
+  }
+  stopDots();
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+}
+
+function renderActions(out) {
+  const actions = document.getElementById("actions");
+  actions.innerHTML = "";
+  const status = (out.status || "pending").toLowerCase();
+  if (status === "failed") {
+    const retry = document.createElement("button");
+    retry.className = "cta";
+    retry.textContent = "Try a different payment method";
+    retry.onclick = async () => {
+      try {
+        await callTool("get_merchant_on_file_payment_methods",
+                       { user_email: out.user_email || null });
+      } catch (e) {
+        sendFollowUp("Show me my saved cards so I can retry payment.");
+      }
+    };
+    actions.appendChild(retry);
+  }
+  if (status === "pending" && out.pay_url) {
+    const open = document.createElement("button");
+    open.className = "ghost";
+    open.textContent = "Open secure payment page";
+    open.onclick = () => {
+      if (window.openai && window.openai.openExternal) {
+        window.openai.openExternal({ href: out.pay_url });
+      } else {
+        window.open(out.pay_url, "_blank", "noopener");
+      }
+    };
+    actions.appendChild(open);
+  }
+}
+
+async function pollOnce(sessionId) {
+  _pollsDone++;
+  try {
+    const res = await callTool("poll_adyen_checkout",
+                               { session_id: sessionId });
+    const sc = (res && res.structuredContent) || {};
+    // A completed payment returns the receipt payload (has order_id) via
+    // the receipt widget; ChatGPT will swap this widget out automatically.
+    // Until then we keep polling on pending.
+    const st = (sc.status || "").toLowerCase();
+    if (sc.order_id) {
+      applyTerminal("ok", "Payment authorised", "Showing your receipt now.");
+      return true;
+    }
+    if (st === "failed" || st === "refused" || st === "error") {
+      applyTerminal("bad", "Payment not authorised",
+                    sc.refusal_reason ||
+                    "Please return to the picker and try another method.");
+      renderActions({ ...sc, status: "failed" });
+      return true;
+    }
+    if (st === "completed") {
+      applyTerminal("ok", "Payment authorised", "Showing your receipt now.");
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function startPolling(out) {
+  const sid = out.session_id || _lastSession;
+  if (!sid) return;
+  _lastSession = sid;
+  if (_pollTimer) return;
+  _pollsDone = 0;
+  _pollTimer = setInterval(async () => {
+    const done = await pollOnce(sid);
+    if (done || _pollsDone >= 40) {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+    }
+  }, 2500);
+  // Kick off one immediate check too.
+  pollOnce(sid);
+}
+
+function render(out) {
+  if (_has_data && (!out || !Object.keys(out).length)) return;
+  if (out && Object.keys(out).length) _has_data = true;
+
+  document.getElementById("logo").src = logoSrc();
+
+  const status = (out.status || "pending").toLowerCase();
+  const sid = out.session_id || "";
+  const cart = out.cart_id || out.merchant_reference || "";
+  const cur = out.currency || "GBP";
+  const amt = Number(out.amount_gbp || out.amount || 0);
+  const sym = cur === "GBP" ? "£" : (cur === "USD" ? "$" : "");
+
+  if (sid) {
+    const meta = document.getElementById("meta");
+    meta.style.display = "block";
+    document.getElementById("m-session").textContent = sid;
+    document.getElementById("m-cart").textContent = cart || "—";
+    document.getElementById("m-amt").textContent = sym + amt.toFixed(2);
+    document.getElementById("m-status").textContent =
+      status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  if (status === "completed" || out.order_id) {
+    applyTerminal("ok", "Payment authorised", "Loading your receipt…");
+  } else if (status === "failed" || status === "refused" || status === "error") {
+    applyTerminal("bad", "Payment not authorised",
+                  out.refusal_reason ||
+                  "Please try a different payment method.");
+    renderActions({ ...out, status: "failed" });
+  } else {
+    startDots();
+    // Show a helpful subline during 3DS challenges.
+    if (out.challenge || status === "challenge" || status === "redirect") {
+      document.getElementById("headline").textContent = "Verifying with your bank";
+      document.getElementById("subline").textContent =
+        "Complete the 3-D Secure check in the Adyen window; we'll pick up the result automatically.";
+    }
+    startPolling(out);
+    renderActions(out);
+  }
+
+  setWidgetState({
+    session_id: sid, cart_id: cart, amount_gbp: amt,
+    currency: cur, last_status: status,
+  });
+}
+
+function boot() {
+  var out = (window.openai && window.openai.toolOutput) || {};
+  render(out);
+}
+
+boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+window.addEventListener("load", function() {
+  boot();
+  var _polls = 0;
+  var _timer = setInterval(function() {
+    _polls++;
+    boot();
+    if (_has_data || _polls >= 20) clearInterval(_timer);
+  }, 150);
+});
+</script>
+</body>
+</html>

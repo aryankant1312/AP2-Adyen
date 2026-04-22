@@ -171,9 +171,22 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function send(prompt) {
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function sendFollowUp(prompt) {
   if (window.openai && window.openai.sendFollowUpMessage) {
     window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
   }
 }
 
@@ -185,6 +198,15 @@ function render(out) {
 
   const lines  = Array.isArray(out.items) ? out.items : [];
   const cartId = out.cart_id || "(no cart)";
+  const userEmail = out.user_email || null;
+
+  // Persist cart identity so sibling widgets (product_grid, mof_picker)
+  // can pick it up without relying on LLM narration.
+  setWidgetState({
+    cart_id:    out.cart_id || null,
+    user_email: userEmail,
+    store_location: out.store_location || null,
+  });
 
   const root = document.getElementById("root");
   if (!root) return;
@@ -233,10 +255,24 @@ function render(out) {
       ${timerLine}
     </div>`;
 
-  document.getElementById("pay").onclick = () =>
-    send(`Show me my saved Boots cards to pay for basket ${cartId}.`);
-  document.getElementById("more").onclick = () =>
-    send(`What else might I want to add to basket ${cartId}?`);
+  document.getElementById("pay").onclick = async () => {
+    try {
+      await callTool("get_merchant_on_file_payment_methods",
+                     { user_email: userEmail || "" });
+    } catch (e) {
+      sendFollowUp(
+        `Show me my saved Boots cards to pay for basket ${cartId}.`
+      );
+    }
+  };
+  document.getElementById("more").onclick = async () => {
+    try {
+      await callTool("search_products",
+                     { query: "popular", limit: 10 });
+    } catch (e) {
+      sendFollowUp(`What else might I want to add to basket ${cartId}?`);
+    }
+  };
 
   if (out.expires_at) {
     const expEl = document.getElementById("timer");

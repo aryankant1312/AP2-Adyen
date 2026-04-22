@@ -181,9 +181,22 @@ function escapeHtml(s) {
     "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
   }[c]));
 }
-function send(prompt) {
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function sendFollowUp(prompt) {
   if (window.openai && window.openai.sendFollowUpMessage) {
     window.openai.sendFollowUpMessage({ prompt: prompt });
+  }
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
   }
 }
 
@@ -282,10 +295,21 @@ function render(out) {
     <button class="ghost" id="more">Continue shopping</button>
   `;
 
+  setWidgetState({
+    last_order_id: order_id,
+    last_total_gbp: Number(total),
+    last_currency: currency,
+  });
+
   document.getElementById("track").onclick = () =>
-    send(`Show me the latest status of my Boots order ${order_id}.`);
-  document.getElementById("more").onclick = () =>
-    send(`Show me popular pharmacy items I might want to buy.`);
+    sendFollowUp(`Show me the latest status of my Boots order ${order_id}.`);
+  document.getElementById("more").onclick = async () => {
+    try {
+      await callTool("search_products", { query: "popular", limit: 10 });
+    } catch (e) {
+      sendFollowUp(`Show me popular pharmacy items I might want to buy.`);
+    }
+  };
 }
 
 function boot() {

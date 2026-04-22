@@ -167,6 +167,7 @@
 var _has_data = false;
 var _selected = null;   // { id, kind, label, alias }
 var _user_email = null;
+var _cart_id = null;
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
@@ -174,10 +175,28 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function send(prompt) {
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function sendFollowUp(prompt) {
   if (window.openai && window.openai.sendFollowUpMessage) {
     window.openai.sendFollowUpMessage({ prompt: prompt });
   }
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
+  }
+}
+
+function readWidgetState() {
+  try { return (window.openai && window.openai.widgetState) || {}; }
+  catch (e) { return {}; }
 }
 
 function brandIconClass(brand) {
@@ -211,16 +230,16 @@ const WALLET_OPTIONS = [
     name: "Google Pay",
     meta: "Pay with your Google account",
     enabled: false, badge: "Coming soon" },
-  { id: "paypal", kind: "wallet", iconClass: "paypal",
+  { id: "paypal", kind: "new_card", iconClass: "paypal",
     iconText: "PP",
     name: "PayPal",
-    meta: "Pay with your PayPal balance",
-    enabled: false, badge: "Coming soon" },
-  { id: "klarna", kind: "bnpl", iconClass: "klarna",
+    meta: "Pay via Adyen Drop-in",
+    enabled: true },
+  { id: "klarna", kind: "new_card", iconClass: "klarna",
     iconText: "K",
     name: "Klarna",
-    meta: "Pay in 3 — 0% interest",
-    enabled: false, badge: "Coming soon" },
+    meta: "Pay in 3 — via Adyen Drop-in",
+    enabled: true },
 ];
 
 const APPLE_LOGO_SVG =
@@ -290,19 +309,40 @@ function render(out) {
 
   _saved_methods = Array.isArray(out.methods) ? out.methods
                  : (Array.isArray(out) ? out : []);
-  _user_email = out.user_email || null;
+  _user_email = out.user_email || _user_email;
+
+  // Pull cart_id (and user_email if we still don't have one) from the
+  // shared widget state that cart.html / product_grid.html populated.
+  const ws = readWidgetState();
+  _cart_id    = out.cart_id    || ws.cart_id    || _cart_id;
+  _user_email = _user_email    || ws.user_email || null;
+
+  setWidgetState({
+    cart_id:    _cart_id,
+    user_email: _user_email,
+  });
 
   rerender();
 
-  document.getElementById("continue").onclick = () => {
+  document.getElementById("continue").onclick = async () => {
     if (!_selected) return;
-    if (_selected.kind === "mof" || _selected.kind === "new_card") {
-      // Both saved-card and new-card tiles launch the Adyen Web Drop-in
-      // Sessions flow. Drop-in shows the shopper's stored cards when a
-      // shopperReference is on file, and lets them enter a new PAN too.
-      send(`Please call start_adyen_checkout for my current basket so I can pay with Adyen Drop-in.`);
-    } else {
-      send(`I'd like to pay with ${_selected.name}.`);
+    const btn = document.getElementById("continue");
+    btn.disabled = true;
+    btn.textContent = "Opening secure checkout…";
+    try {
+      await callTool("start_adyen_checkout", {
+        cart_id:    _cart_id    || "",
+        user_email: _user_email || "",
+      });
+    } catch (e) {
+      sendFollowUp(
+        _cart_id
+          ? `Please call start_adyen_checkout for basket ${_cart_id} so I can pay with Adyen Drop-in.`
+          : `Please call start_adyen_checkout for my current basket so I can pay with Adyen Drop-in.`
+      );
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Continue";
     }
   };
 }

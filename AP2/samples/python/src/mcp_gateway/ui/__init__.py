@@ -22,6 +22,11 @@ PRODUCT_GRID_URI = "ui://product_grid"
 CART_URI         = "ui://cart"
 MOF_PICKER_URI   = "ui://mof_picker"
 RECEIPT_URI      = "ui://receipt"
+# Adyen-specific widgets: inline Drop-in (card, PayPal, Klarna, 3DS) and a
+# lightweight processing/polling spinner the LLM surfaces between "pay"
+# and "receipt".
+NEW_CARD_URI     = "ui://new_card"
+PROCESSING_URI   = "ui://payment_processing"
 
 
 def widget_meta(ui_uri: str,
@@ -98,10 +103,12 @@ def widget_result(payload: Any,
 # ChatGPT looks for when deciding to render the iframe; Claude treats
 # unknown subtypes as ``text/html`` and ignores the template — harmless.
 TEMPLATE_INDEX: dict[str, tuple[str, str]] = {
-    PRODUCT_GRID_URI: ("product_grid.html", "text/html+skybridge"),
-    CART_URI:         ("cart.html",         "text/html+skybridge"),
-    MOF_PICKER_URI:   ("mof_picker.html",   "text/html+skybridge"),
-    RECEIPT_URI:      ("receipt.html",      "text/html+skybridge"),
+    PRODUCT_GRID_URI: ("product_grid.html",       "text/html+skybridge"),
+    CART_URI:         ("cart.html",               "text/html+skybridge"),
+    MOF_PICKER_URI:   ("mof_picker.html",         "text/html+skybridge"),
+    RECEIPT_URI:      ("receipt.html",            "text/html+skybridge"),
+    NEW_CARD_URI:     ("new_card.html",           "text/html+skybridge"),
+    PROCESSING_URI:   ("payment_processing.html", "text/html+skybridge"),
 }
 
 from .loader import register_resources  # noqa: E402  (after constants)
@@ -111,6 +118,8 @@ __all__ = [
     "CART_URI",
     "MOF_PICKER_URI",
     "RECEIPT_URI",
+    "NEW_CARD_URI",
+    "PROCESSING_URI",
     "TEMPLATE_INDEX",
     "register_resources",
     "widget_meta",

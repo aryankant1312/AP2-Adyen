@@ -188,6 +188,7 @@
 <script>
 var _has_data = false;
 var _selected = {};   // product_ref -> { product_ref, title, qty }
+var _ctx = {};        // { cart_id, user_email, store_location }
 
 function logoSrc() { return "{{BOOTS_LOGO_DATA_URL}}"; }
 
@@ -197,10 +198,29 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function send(prompt) {
+function callTool(name, args) {
+  if (!(window.openai && window.openai.callTool)) {
+    return Promise.reject(new Error("callTool unavailable"));
+  }
+  return window.openai.callTool(name, args || {});
+}
+
+function sendFollowUp(prompt) {
   if (window.openai && window.openai.sendFollowUpMessage) {
     window.openai.sendFollowUpMessage({ prompt: prompt });
   }
+}
+
+function setWidgetState(state) {
+  if (window.openai && window.openai.setWidgetState) {
+    try { window.openai.setWidgetState(state); } catch (e) { /* non-fatal */ }
+  }
+}
+
+function readWidgetState() {
+  try {
+    return (window.openai && window.openai.widgetState) || {};
+  } catch (e) { return {}; }
 }
 
 function categoryIcon(cat) {
@@ -228,6 +248,19 @@ function render(out) {
                  : (Array.isArray(out) ? out : []);
   const store = out.store || out.store_location || null;
   const query = out.query || null;
+
+  // Merge context from toolOutput + widgetState so Add buttons can call
+  // add_cart_item directly. First tool call (search_products) won't have
+  // a cart_id yet — callers should set it via widgetState after the first
+  // add, or the LLM will bootstrap a cart on the initial fallback.
+  const ws = readWidgetState();
+  _ctx = {
+    cart_id:        out.cart_id        || ws.cart_id        || null,
+    user_email:     out.user_email     || ws.user_email     || null,
+    store_location: out.store_location || store || ws.store_location || null,
+    query:          query              || ws.query          || null,
+  };
+  setWidgetState(_ctx);
 
   document.getElementById("logo").src = logoSrc();
   document.getElementById("search-text").textContent =
@@ -276,8 +309,22 @@ function render(out) {
     btn.className = "add" + (isSelected ? " added" : "");
     btn.textContent = isSelected ? "✓ Added" : "Add";
     btn.disabled = !inStock;
-    btn.onclick = () => {
-      if (_selected[p.product_ref]) {
+    btn.onclick = async () => {
+      const already = !!_selected[p.product_ref];
+      if (already) {
+        // Remove tool call when a cart_id is known; otherwise local-only.
+        if (_ctx.cart_id) {
+          btn.disabled = true;
+          try {
+            await callTool("remove_cart_item",
+                           { cart_id: _ctx.cart_id,
+                             product_ref: p.product_ref });
+          } catch (e) {
+            sendFollowUp(`Remove ${p.title || p.product_ref} from my basket.`);
+          } finally {
+            btn.disabled = !inStock;
+          }
+        }
         delete _selected[p.product_ref];
         btn.classList.remove("added");
         btn.textContent = "Add";
@@ -289,6 +336,24 @@ function render(out) {
         };
         btn.classList.add("added");
         btn.textContent = "✓ Added";
+        // Direct add when a cart already exists (fast path). Falls back
+        // to a follow-up prompt so the LLM can bootstrap the cart on the
+        // very first add.
+        if (_ctx.cart_id) {
+          btn.disabled = true;
+          try {
+            await callTool("add_cart_item",
+                           { cart_id: _ctx.cart_id,
+                             product_ref: p.product_ref,
+                             qty: 1 });
+          } catch (e) {
+            sendFollowUp(
+              `Add ${p.title || p.product_ref} (${p.product_ref}) to basket ${_ctx.cart_id}.`
+            );
+          } finally {
+            btn.disabled = !inStock;
+          }
+        }
       }
       refreshFooter();
     };
@@ -299,18 +364,46 @@ function render(out) {
   footer.style.display = "block";
   refreshFooter();
 
-  document.getElementById("more").onclick = () =>
-    send("Show me more pharmacy products I might want to consider.");
-  document.getElementById("checkout").onclick = () => {
+  document.getElementById("more").onclick = async () => {
+    // Re-run search with a broader / higher limit. The LLM already gave
+    // us the last query via structuredContent.
+    try {
+      await callTool("search_products", {
+        query: (_ctx.query || query || "popular"),
+        store_location: _ctx.store_location || undefined,
+        limit: 15,
+      });
+    } catch (e) {
+      sendFollowUp("Show me more pharmacy products I might want to consider.");
+    }
+  };
+
+  document.getElementById("checkout").onclick = async () => {
     const items = Object.values(_selected);
     if (!items.length) return;
+
+    // Fast path: if we already have a cart_id, all adds were performed
+    // inline above; jump straight to the cart + payment picker.
+    if (_ctx.cart_id) {
+      try {
+        await callTool("view_cart", { cart_id: _ctx.cart_id });
+      } catch (e) {
+        sendFollowUp(
+          `Show basket ${_ctx.cart_id} and take me to the payment picker.`
+        );
+      }
+      return;
+    }
+
+    // Slow path: no cart yet. Ask the LLM to bootstrap and chain the
+    // tools — gives us a clean ramp to a real cart_id we can then
+    // persist in widgetState on the next render.
     const list = items
       .map(it => `  - ${it.title || it.product_ref} (${it.product_ref}) × ${it.qty}`)
       .join("\n");
-    send(
-      `Please add the following items to my Boots basket and then take me to ` +
-      `checkout (call add_cart_item for each, then finalize_cart, then ` +
-      `get_merchant_on_file_payment_methods):\n${list}`
+    sendFollowUp(
+      `Please start a basket for me, add the following items, finalise, ` +
+      `and show my saved cards:\n${list}`
     );
   };
 }
