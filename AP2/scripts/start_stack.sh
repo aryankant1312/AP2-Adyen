@@ -27,6 +27,15 @@ mkdir -p "${LOG_DIR}"
 MCP_PORT="${MCP_HTTP_PORT:-5000}"
 ENV_FILE="${REPO_ROOT}/ops/envs/.env"
 
+# Load env file if present so things like NGROK_AUTHTOKEN don't have to be
+# exported manually in the shell.
+if [[ -f "${ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  set +a
+fi
+
 # Prefer the bundled ngrok binary; fall back to PATH.
 NGROK_BIN="${REPO_ROOT}/.bin/ngrok"
 if [[ ! -x "${NGROK_BIN}" ]] && command -v ngrok >/dev/null 2>&1; then
